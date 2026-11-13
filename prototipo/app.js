@@ -17,6 +17,7 @@
   const TAU = Math.PI * 2;
   const $ = (s, el = document) => el.querySelector(s);
   const $$ = (s, el = document) => Array.from(el.querySelectorAll(s));
+  const isHdmiWindow = new URLSearchParams(location.search).get('hdmi') === '1';
   const channel = 'BroadcastChannel' in window ? new BroadcastChannel('addiuva-ruleta-v2') : null;
 
   /* ---------------- Datos iniciales y nombres de prueba ---------------- */
@@ -90,6 +91,16 @@
 
   /* ---------------- Persistencia (Local + Servidor .exe de Windows) ---------------- */
   let hasNativeServer = false;
+  let liveSupported = null;
+  let lastStateVersion = 0;
+  let lastLiveId = 0;
+  let liveBootstrapped = false;
+  let liveSeq = 0;
+  let liveBusy = false;
+  let syncBusy = false;
+  let localSaveSeq = 0;
+  let inflightSaves = 0;
+  const seenLocalLiveIds = new Set();
 
   function loadLocal() {
     try {
@@ -105,14 +116,48 @@
 
   let lastStateJson = JSON.stringify(state);
 
+  function makeLiveId() {
+    liveSeq = (liveSeq + 1) % 1000;
+    const id = Date.now() * 1000 + liveSeq;
+    seenLocalLiveIds.add(id);
+    if (seenLocalLiveIds.size > 60) {
+      const oldest = seenLocalLiveIds.values().next().value;
+      seenLocalLiveIds.delete(oldest);
+    }
+    return id;
+  }
+
+  function broadcastLive(payload) {
+    const ev = { ...payload, id: makeLiveId(), ts: Date.now(), stateVersion: lastStateVersion };
+    if (channel) channel.postMessage({ type: 'live', ev });
+    if (hasNativeServer && liveSupported !== false) {
+      fetch('/api/live', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(ev)
+      }).then((r) => {
+        if (r.ok) liveSupported = true;
+        else if (r.status === 404 || r.status === 405) liveSupported = false;
+      }).catch(() => {});
+    }
+  }
+
   async function syncFromServer() {
-    if (!/^https?:$/.test(location.protocol)) return;
+    if (!/^https?:$/.test(location.protocol) || syncBusy) return false;
+    syncBusy = true;
+    const saveSeqAtStart = localSaveSeq;
+    let runLiveBootstrap = false;
     try {
       const res = await fetch('/api/state', { cache: 'no-store' });
-      if (!res.ok) return;
+      if (!res.ok) return false;
       const remote = await res.json();
       if (remote && Array.isArray(remote.employees)) {
+        const firstConnect = !hasNativeServer;
         hasNativeServer = true;
+        if (firstConnect && liveSupported === null) runLiveBootstrap = true;
+        if (inflightSaves > 0 || saveSeqAtStart !== localSaveSeq) {
+          return true;
+        }
         const remoteJson = JSON.stringify(remote);
         if (remoteJson !== lastStateJson && !wheel.spinning && !overlayOpen) {
           lastStateJson = remoteJson;
@@ -120,34 +165,92 @@
           try { localStorage.setItem(KEY, remoteJson); } catch (_) {}
           renderAll();
         }
+        return true;
       }
     } catch (_) {
       // Ejecutando 100% en navegador sin el .exe
+    } finally {
+      syncBusy = false;
+      if (runLiveBootstrap) pollLive();
+    }
+    return false;
+  }
+
+  async function pollLive() {
+    if (!hasNativeServer || liveSupported === false || liveBusy) return;
+    liveBusy = true;
+    try {
+      const res = await fetch('/api/live', { cache: 'no-store' });
+      if (!res.ok) { liveSupported = false; return; }
+      const data = await res.json();
+      if (!data || typeof data.stateVersion !== 'number') { liveSupported = false; return; }
+      liveSupported = true;
+      const wasBootstrapped = liveBootstrapped;
+      liveBootstrapped = true;
+      if (lastStateVersion === 0 && !wasBootstrapped) {
+        lastStateVersion = data.stateVersion;
+      } else if (data.stateVersion !== lastStateVersion && inflightSaves === 0) {
+        if (!wheel.spinning && !overlayOpen) {
+          const synced = await syncFromServer();
+          if (synced) lastStateVersion = data.stateVersion;
+        } else {
+          wheel.dirty = true;
+        }
+      }
+      const ev = data.live;
+      if (ev && ev.id && ev.id !== lastLiveId) {
+        lastLiveId = ev.id;
+        if (!wasBootstrapped && (!ev.ts || Math.abs(Date.now() - ev.ts) > 2500)) {
+          return;
+        }
+        if (!seenLocalLiveIds.has(ev.id)) {
+          await handleLiveEvent(ev);
+        }
+      }
+    } catch (_) {
+      // Ignorar fallo transitorio de sondeo
+    } finally {
+      liveBootstrapped = true;
+      liveBusy = false;
     }
   }
 
   function save() {
     const json = JSON.stringify(state);
     lastStateJson = json;
+    localSaveSeq++;
     try { localStorage.setItem(KEY, json); } catch (_) { /* ignore */ }
-    if (channel) channel.postMessage('sync');
+    if (channel) channel.postMessage({ type: 'sync' });
     if (hasNativeServer) {
+      inflightSaves++;
       fetch('/api/state', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: json
-      }).catch(() => {});
+      })
+        .catch(() => {})
+        .finally(() => { inflightSaves = Math.max(0, inflightSaves - 1); });
     }
     renderAll();
   }
 
   function onExternalChange() {
+    if (wheel.spinning || overlayOpen) { wheel.dirty = true; return; }
     state = loadLocal();
     lastStateJson = JSON.stringify(state);
     renderAll();
   }
   window.addEventListener('storage', (e) => { if (e.key === KEY) onExternalChange(); });
-  if (channel) channel.onmessage = onExternalChange;
+  if (channel) {
+    channel.onmessage = (e) => {
+      const msg = e.data;
+      if (msg && msg.type === 'live' && msg.ev) {
+        if (!seenLocalLiveIds.has(msg.ev.id)) handleLiveEvent(msg.ev);
+      } else {
+        onExternalChange();
+      }
+    };
+  }
 
   /* ---------------- Wake Lock: mantener PC y pantalla encendidas ---------------- */
   let wakeLock = null;
@@ -165,7 +268,7 @@
   requestWakeLock();
 
   /* ---------------- Bloqueo de atajos de salida en modo Kiosco ---------------- */
-  let kioskLocked = true;
+  let kioskLocked = !isHdmiWindow;
   document.addEventListener('contextmenu', (e) => {
     if (kioskLocked && !document.body.classList.contains('hdmi-clean')) e.preventDefault();
   });
@@ -311,11 +414,11 @@
     o.start(t);
     o.stop(t + dur + 0.02);
   }
-  function tickSound() {
+  function tickSound({ silent = false } = {}) {
     const now = performance.now();
     if (now - lastTick < 45) return;
     lastTick = now;
-    blip(1700, 0.035, 'square', 0.05);
+    if (!silent) blip(1700, 0.035, 'square', 0.05);
     const p = $('#wheel-pointer');
     p.classList.remove('tick'); void p.offsetWidth; p.classList.add('tick');
   }
@@ -344,6 +447,7 @@
   let pendingWinner = null;
   let winnerRevealed = false;
   let revealLockUntil = 0;
+  let pendingRemoteReveal = false;
 
   function sizeWheel() {
     const rect = wheelCanvas.getBoundingClientRect();
@@ -439,6 +543,41 @@
     return Math.floor(mod(-Math.PI / 2 - rot, TAU) / seg) % n;
   }
 
+  function animateWheelSpin({ items, winnerEmp, prize, startRot, endRot, duration, silent = false }) {
+    const n = items.length;
+    if (!n || !winnerEmp || !prize) return;
+    if (!silent) ac();
+
+    const t0 = performance.now();
+    let lastIdx = indexAtPointer(startRot, n);
+
+    pendingRemoteReveal = false;
+    wheel.items = items;
+    wheel.rotation = startRot;
+    wheel.spinning = true;
+    $('#spin-btn').disabled = true;
+
+    const ease = (t) => 1 - Math.pow(1 - t, 4);
+    function frame(now) {
+      if (!wheel.spinning) return;
+      const t = Math.min(1, (now - t0) / duration);
+      wheel.rotation = startRot + (endRot - startRot) * ease(t);
+      drawWheel();
+      const idx = indexAtPointer(wheel.rotation, n);
+      if (idx !== lastIdx) { lastIdx = idx; tickSound({ silent }); }
+      if (t < 1) requestAnimationFrame(frame);
+      else {
+        wheel.rotation = mod(wheel.rotation, TAU);
+        wheel.spinning = false;
+        const doAutoReveal = pendingRemoteReveal;
+        pendingRemoteReveal = false;
+        showWinner(winnerEmp, prize, { silent });
+        if (doAutoReveal) revealWinner({ remote: true });
+      }
+    }
+    requestAnimationFrame(frame);
+  }
+
   function spin() {
     if (wheel.spinning || overlayOpen) return;
     const prize = currentPrize();
@@ -448,39 +587,104 @@
     const items = wheel.items.slice();
     const n = items.length;
     if (!n) { toast('No hay participantes habilitados en la ruleta'); return; }
-    ac();
 
     const w = secureInt(n);
     const seg = TAU / n;
     const targetRel = (w + 0.15 + secureRandom() * 0.7) * seg;
     const targetRot = -Math.PI / 2 - targetRel;
-    const start = wheel.rotation;
-    const end = start + mod(targetRot - start, TAU) + (7 + secureInt(3)) * TAU;
+    const startRot = wheel.rotation;
+    const endRot = startRot + mod(targetRot - startRot, TAU) + (7 + secureInt(3)) * TAU;
     const duration = 7000 + secureRandom() * 1400;
-    const t0 = performance.now();
-    let lastIdx = indexAtPointer(start, n);
 
-    wheel.spinning = true;
-    $('#spin-btn').disabled = true;
+    broadcastLive({
+      action: 'spin',
+      dni: items[w].dni,
+      startRot,
+      endRot,
+      duration,
+      prizeId: prize.id
+    });
 
-    const ease = (t) => 1 - Math.pow(1 - t, 4);
-    function frame(now) {
-      const t = Math.min(1, (now - t0) / duration);
-      wheel.rotation = start + (end - start) * ease(t);
-      drawWheel();
-      const idx = indexAtPointer(wheel.rotation, n);
-      if (idx !== lastIdx) { lastIdx = idx; tickSound(); }
-      if (t < 1) requestAnimationFrame(frame);
-      else {
-        wheel.rotation = mod(wheel.rotation, TAU);
-        wheel.spinning = false;
-        showWinner(items[w], prize);
-      }
-    }
-    requestAnimationFrame(frame);
+    animateWheelSpin({
+      items,
+      winnerEmp: items[w],
+      prize,
+      startRot,
+      endRot,
+      duration,
+      silent: false
+    });
   }
 
-  function showWinner(emp, prize) {
+  async function handleLiveEvent(ev) {
+    if (!ev || !ev.action) return;
+    if (ev.action === 'reveal') {
+      if (wheel.spinning) { pendingRemoteReveal = true; return; }
+      if (overlayOpen && !winnerRevealed) revealWinner({ remote: true });
+      return;
+    }
+    if (ev.action === 'close') {
+      pendingRemoteReveal = false;
+      wheel.spinning = false;
+      if (overlayOpen) closeWinner();
+      await syncFromServer();
+      syncWheel();
+      return;
+    }
+    if (ev.action === 'spin') {
+      if (wheel.spinning) return;
+      if (overlayOpen) closeWinner();
+      const needsSync = !wheel.items.some((e) => cleanDni(e.dni) === cleanDni(ev.dni)) ||
+        (ev.prizeId && currentPrize()?.id !== ev.prizeId) ||
+        (ev.stateVersion && ev.stateVersion !== lastStateVersion);
+      if (needsSync && hasNativeServer) {
+        await syncFromServer();
+      }
+      let items = eligible();
+      let wIdx = items.findIndex((e) => cleanDni(e.dni) === cleanDni(ev.dni));
+      if (wIdx < 0 && hasNativeServer) {
+        await new Promise((r) => setTimeout(r, 100));
+        await syncFromServer();
+        items = eligible();
+        wIdx = items.findIndex((e) => cleanDni(e.dni) === cleanDni(ev.dni));
+      }
+      if (wIdx < 0) return;
+
+      const prize = (ev.prizeId && state.prizes.find((p) => p.id === ev.prizeId)) || currentPrize();
+      if (!prize) return;
+      const pIdx = state.prizes.indexOf(prize);
+      if (pIdx >= 0 && state.current !== pIdx) {
+        state.current = pIdx;
+        renderPantalla();
+        items = eligible();
+        wIdx = items.findIndex((e) => cleanDni(e.dni) === cleanDni(ev.dni));
+        if (wIdx < 0) return;
+      }
+
+      const n = items.length;
+      let startRot = typeof ev.startRot === 'number' ? ev.startRot : wheel.rotation;
+      let endRot = typeof ev.endRot === 'number' ? ev.endRot : 0;
+      const duration = typeof ev.duration === 'number' && ev.duration > 1000 ? ev.duration : 7400;
+      if (!(endRot > startRot && indexAtPointer(endRot, n) === wIdx)) {
+        const seg = TAU / n;
+        const targetRot = -Math.PI / 2 - (wIdx + 0.5) * seg;
+        startRot = wheel.rotation;
+        endRot = startRot + mod(targetRot - startRot, TAU) + 7 * TAU;
+      }
+
+      animateWheelSpin({
+        items,
+        winnerEmp: items[wIdx],
+        prize,
+        startRot,
+        endRot,
+        duration,
+        silent: true
+      });
+    }
+  }
+
+  function showWinner(emp, prize, { silent = false } = {}) {
     const mysteryMode = !state.config.showNames;
     pendingWinner = { dni: emp.dni, nombre: emp.nombre, numero: emp.numero, prizeId: prize.id };
     overlayOpen = true;
@@ -503,7 +707,7 @@
       $('#winner-confirm').hidden = true;
       $('#winner-absent').hidden = true;
       $('#winner-overlay').classList.add('show');
-      suspenseChime();
+      if (!silent) suspenseChime();
       setTimeout(() => $('#winner-reveal').focus(), 60);
     } else {
       winnerRevealed = true;
@@ -520,13 +724,14 @@
       $('#winner-confirm').hidden = false;
       $('#winner-absent').hidden = false;
       $('#winner-overlay').classList.add('show');
-      fanfare();
+      if (!silent) fanfare();
       confetti();
       setTimeout(() => $('#winner-confirm').focus(), 60);
     }
   }
 
-  function revealWinner() {
+  function revealWinner(opts) {
+    const remote = Boolean(opts && opts.remote);
     if (!pendingWinner || winnerRevealed) return;
     winnerRevealed = true;
     revealLockUntil = performance.now() + 260;
@@ -542,7 +747,10 @@
     $('#winner-reveal-hint').hidden = true;
     $('#winner-confirm').hidden = false;
     $('#winner-absent').hidden = false;
-    fanfare();
+    if (!remote) {
+      broadcastLive({ action: 'reveal' });
+      fanfare();
+    }
     confetti();
     setTimeout(() => $('#winner-confirm').focus(), 60);
   }
@@ -569,6 +777,7 @@
     }
     closeWinner();
     save();
+    broadcastLive({ action: 'close' });
   }
 
   function absentWinner() {
@@ -577,6 +786,7 @@
     if (emp) emp.ausente = true;
     closeWinner();
     save();
+    broadcastLive({ action: 'close' });
     toast(`${emp ? emp.nombre : 'Participante'} marcado ausente · girando de nuevo…`);
     setTimeout(spin, 850);
   }
@@ -1085,11 +1295,19 @@
     if (hasNativeServer) {
       try {
         const r = await fetch('/api/open-hdmi', { method: 'POST' });
-        if (r.ok) { toast('🖥️ Ventana de Ruleta abierta · arrastrala al proyector HDMI'); return; }
+        if (r.ok) {
+          const info = await r.json().catch(() => ({}));
+          if (info && info.hasSecondary) {
+            toast(`📺 Ruleta enviada en pantalla completa a la TV (${info.width}×${info.height}). Controlala desde aquí.`);
+          } else {
+            toast('🖥️ Ventana HDMI abierta · Tocá Win + P → Extender y volvé a pulsar 🖥️ Ventana HDMI para pasarla a la TV.');
+          }
+          return;
+        }
       } catch (_) {}
     }
     window.open(`${location.origin}${location.pathname}?hdmi=1#pantalla`, 'addiuva-hdmi', 'popup,width=1280,height=720');
-    toast('🖥️ Ventana HDMI abierta · arrastrala al proyector y presioná F11');
+    toast('🖥️ Ventana HDMI abierta · arrastrala a la TV (Win + P → Extender) y presioná F11');
   });
 
   $('#auth-numpad').addEventListener('mousedown', (e) => {
@@ -1141,13 +1359,17 @@
   if ('ResizeObserver' in window) {
     new ResizeObserver(() => sizeWheel()).observe($('#wheel-wrap'));
   }
+  let pollTick = 0;
   setInterval(() => {
-    if (hasNativeServer) syncFromServer();
-  }, 1500);
+    if (!hasNativeServer) return;
+    pollTick++;
+    if (liveSupported !== false) pollLive();
+    else if (pollTick % 5 === 0) syncFromServer();
+  }, 220);
 
   /* ---------------- Eventos de la Ruleta ---------------- */
   $('#spin-btn').addEventListener('click', spin);
-  $('#winner-reveal').addEventListener('click', revealWinner);
+  $('#winner-reveal').addEventListener('click', () => revealWinner());
   $('#winner-confirm').addEventListener('click', confirmWinner);
   $('#winner-absent').addEventListener('click', absentWinner);
   $('#stage-show-names').addEventListener('change', (e) => {
@@ -1358,14 +1580,17 @@
   });
 
   /* ---------------- Inicialización ---------------- */
-  if (new URLSearchParams(location.search).get('hdmi') === '1') {
+  if (isHdmiWindow) {
+    document.title = 'Addiuva · Pantalla HDMI Ruleta';
+    kioskLocked = false;
+    document.body.classList.remove('kiosk-locked');
     document.body.classList.add('hdmi-clean');
     setView('pantalla');
   } else {
     const initial = location.hash.slice(1) || 'kiosco';
     setView(initial);
+    if (activeView() === 'view-kiosco') focusDniField();
   }
-  focusDniField();
   renderAll();
   syncFromServer();
 })();

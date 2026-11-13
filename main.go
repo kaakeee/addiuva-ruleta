@@ -65,9 +65,23 @@ type AppState struct {
 	Config    AppConfig    `json:"config"`
 }
 
+type LiveEvent struct {
+	ID           int64   `json:"id"`
+	Ts           int64   `json:"ts,omitempty"`
+	Action       string  `json:"action"`
+	Dni          string  `json:"dni,omitempty"`
+	StartRot     float64 `json:"startRot,omitempty"`
+	EndRot       float64 `json:"endRot,omitempty"`
+	Duration     float64 `json:"duration,omitempty"`
+	PrizeID      string  `json:"prizeId,omitempty"`
+	StateVersion int64   `json:"stateVersion,omitempty"`
+}
+
 var (
 	mu             sync.Mutex
 	currentState   AppState
+	stateVersion   int64 = 1
+	liveEvent      LiveEvent
 	dataFilePath   string
 	csvFilePath    string
 	authorizedQuit bool
@@ -165,6 +179,7 @@ func writeCsvBackupLocked() error {
 }
 
 func main() {
+	initDpiAwareness()
 	if !acquireSingleInstance() {
 		return
 	}
@@ -217,9 +232,41 @@ func main() {
 				incoming.Config.AdminPass = currentState.Config.AdminPass
 			}
 			currentState = incoming
+			stateVersion++
 			_ = saveStateLocked()
 			mu.Unlock()
 			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"ok":true}`))
+			return
+		}
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	})
+
+	mux.HandleFunc("/api/live", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Cache-Control", "no-store")
+		if r.Method == http.MethodGet {
+			mu.Lock()
+			payload := struct {
+				StateVersion int64     `json:"stateVersion"`
+				Live         LiveEvent `json:"live"`
+			}{
+				StateVersion: stateVersion,
+				Live:         liveEvent,
+			}
+			mu.Unlock()
+			_ = json.NewEncoder(w).Encode(payload)
+			return
+		}
+		if r.Method == http.MethodPost {
+			var ev LiveEvent
+			if err := json.NewDecoder(r.Body).Decode(&ev); err != nil {
+				http.Error(w, "invalid json", http.StatusBadRequest)
+				return
+			}
+			mu.Lock()
+			liveEvent = ev
+			mu.Unlock()
 			_, _ = w.Write([]byte(`{"ok":true}`))
 			return
 		}
@@ -231,9 +278,21 @@ func main() {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		go launchHdmiWindow(hdmiURL, profileDir)
+		info := launchHdmiWindow(hdmiURL, profileDir)
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"ok":true}`))
+		_ = json.NewEncoder(w).Encode(struct {
+			Ok           bool  `json:"ok"`
+			Monitors     int   `json:"monitors"`
+			HasSecondary bool  `json:"hasSecondary"`
+			Width        int32 `json:"width"`
+			Height       int32 `json:"height"`
+		}{
+			Ok:           true,
+			Monitors:     info.Monitors,
+			HasSecondary: info.HasSecondary,
+			Width:        info.Width,
+			Height:       info.Height,
+		})
 	})
 
 	mux.HandleFunc("/api/quit", func(w http.ResponseWriter, r *http.Request) {

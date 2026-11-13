@@ -36,16 +36,16 @@ En el **Modo 1 · Inscripción (Kiosco)** cada asistente se identifica en la PC 
 
 ---
 
-## 🎡 Cómo pasar de la Inscripción a la Ruleta
+## 🎡 Cómo pasar de la Inscripción a la Ruleta (Notebook + TV HDMI)
 
-1. En la esquina superior derecha tocá **`🔒 Admin / Ruleta`**.
-2. Ingresá la contraseña de administrador (**`2026`** por defecto).
+1. Conectá el cable HDMI a la TV o proyector y presioná **`Win + P` → Extender** *(así la notebook usa 1920×1200 16:10 y la TV usa 16:9 1080p/4K sin franjas negras)*.
+2. En la esquina superior derecha de la app tocá **`🔒 Admin / Ruleta`** e ingresá la contraseña (**`2026`** por defecto).
 3. Se desbloqueará la barra superior con:
    - **`1. Inscripción (Kiosco)`**: pantalla táctil para que la gente se anote.
    - **`2. Generar Ruleta`**: genera automáticamente la ruleta con todos los inscriptos habilitados, premios, sonido y lluvia de confeti.
      - **Modo Números (suspenso):** al apagar *“Mostrar nombres en la ruleta”*, los gajos muestran solo el número (`001`, `002`...), la columna lateral oculta los nombres en la TV y, al detenerse en un ganador, muestra primero el **número** con el **nombre oculto** hasta que toques **👁️ Descubrir nombre ganador** (o presiones `Espacio` / `Enter` de nuevo).
    - **`3. Admin / Datos`**: buscador de inscriptos, eliminación de participantes/ganadores, carga de premios, cambio de contraseña y exportación a CSV/Excel.
-   - **`🖥️ Ventana HDMI`**: abre una segunda ventana limpia sincronizada en vivo solo con la ruleta para arrastrar al TV o proyector HDMI (`1080p` / `4K`).
+   - **`🖥️ Ventana HDMI`**: envía automáticamente la ruleta en pantalla completa directamente a la TV/proyector 16:9 (`1080p` / `4K`); todos los giros, *“Descubrir nombre”*, cambios de premio y confirmaciones desde la notebook se sincronizan en vivo en la TV.
    - **`🔒 Bloquear Kiosco`**: vuelve a ocultar los menús para dejar la PC bloqueada frente al público.
    - **`⏻ Salir`**: cierra la aplicación de Windows pidiendo la contraseña.
 
