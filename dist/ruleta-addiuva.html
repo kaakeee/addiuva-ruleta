@@ -630,7 +630,7 @@ body:not(.kiosk-locked) .top-actions { margin-left: 0; }
   display: flex;
   align-items: center;
   gap: clamp(10px, 1vw, 28px);
-  padding: clamp(6px, 0.7vh, 16px) clamp(10px, 0.9vw, 24px) clamp(6px, 0.7vh, 16px) clamp(16px, 1.4vw, 38px);
+  padding: clamp(8px, 0.8vh, 18px) clamp(20px, 1.8vw, 44px);
   border-radius: 999px;
   background: rgba(0,0,0,0.28);
   border: 1px solid var(--line);
@@ -713,9 +713,10 @@ kbd { font-family: inherit; font-size: 0.92em; padding: 2px 7px; border-radius: 
 .prizes-card { padding: clamp(12px, 1.4vh, 30px) clamp(14px, 1.3vw, 30px); flex: 1; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
 .prizes-head { display: flex; justify-content: space-between; align-items: baseline; flex-shrink: 0; }
 .prize-list { list-style: none; margin: 10px 0 0; padding: 0 4px 0 0; display: flex; flex-direction: column; gap: clamp(5px, 0.7vh, 18px); overflow: auto; flex: 1; min-height: 0; }
+.prize-list:empty { display: none; }
 .prize-item {
   display: grid;
-  grid-template-columns: clamp(26px, 2vw, 56px) 1fr;
+  grid-template-columns: clamp(32px, 2.5vw, 68px) 1fr;
   gap: 2px clamp(8px, 0.8vw, 20px);
   align-items: center;
   padding: clamp(7px, 0.8vh, 22px) clamp(9px, 0.9vw, 22px);
@@ -725,13 +726,16 @@ kbd { font-family: inherit; font-size: 0.92em; padding: 2px 7px; border-radius: 
   cursor: pointer;
 }
 .prize-item:hover { background: rgba(255,255,255,0.06); }
-.prize-item .idx { grid-row: span 2; width: clamp(26px, 2vw, 56px); height: clamp(26px, 2vw, 56px); border-radius: 10px; display: grid; place-items: center; font-size: clamp(12px, 0.9vw, 26px); font-weight: 700; background: rgba(255,255,255,0.08); color: var(--ink-soft); }
+.prize-item .idx { grid-row: span 2; width: clamp(32px, 2.5vw, 68px); height: clamp(28px, 2.1vw, 58px); border-radius: 10px; display: grid; place-items: center; font-size: clamp(11.5px, 0.88vw, 24px); font-weight: 800; background: rgba(255,255,255,0.08); color: var(--ink-soft); }
 .prize-item .pname { font-weight: 600; font-size: clamp(13px, 0.95vw, 30px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .prize-item .pwinner { font-size: clamp(11.5px, 0.82vw, 24px); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.prize-item.current { background: rgba(255, 204, 110, 0.1); border-color: rgba(255, 204, 110, 0.38); }
-.prize-item.current .idx { background: var(--gold); color: #1E1041; }
 .prize-item.done .idx { background: var(--grad-short); color: #fff; }
 .prize-item.done .pwinner { color: var(--ink-soft); }
+.winner-item { cursor: default; }
+.winner-item:hover { background: rgba(255,255,255,0.03); }
+.winner-item.latest { background: rgba(255, 204, 110, 0.12); border-color: rgba(255, 204, 110, 0.38); animation: slideIn .35s ease; }
+.winner-item.latest:hover { background: rgba(255, 204, 110, 0.14); }
+.winner-item.latest .idx { background: var(--gold); color: #1E1041; }
 
 /* ---------- Overlays (Ganador + Contraseña Admin) ---------- */
 .overlay {
@@ -906,8 +910,8 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
   body.hdmi-clean .wheel-wrap { width: min(100%, calc(100vh - 205px), 620px); margin-top: 6px; }
   .prizes-card { padding: 12px 14px; }
   .prize-list { gap: 4px; margin-top: 8px; }
-  .prize-item { padding: 5px 8px; gap: 1px 8px; }
-  .prize-item .idx { width: 24px; height: 24px; font-size: 11.5px; }
+  .prize-item { padding: 5px 8px; gap: 1px 8px; grid-template-columns: 28px 1fr; }
+  .prize-item .idx { width: 28px; height: 24px; font-size: 11px; }
   .prize-item .pname { font-size: 12.5px; }
   .prize-item .pwinner { font-size: 11px; }
 }
@@ -1201,13 +1205,9 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
         </div>
 
         <div class="wheel-col">
-          <div class="prize-banner">
-            <span class="label">Ahora sorteamos</span>
-            <span class="name" id="current-prize">—</span>
-            <div class="prize-nav">
-              <button class="icon-btn" id="prize-prev" aria-label="Premio anterior"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg></button>
-              <button class="icon-btn" id="prize-next" aria-label="Premio siguiente"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg></button>
-            </div>
+          <div class="prize-banner stage-banner">
+            <span class="label">Sorteo en vivo</span>
+            <span class="name" id="current-round">Ronda #1</span>
           </div>
           <div class="wheel-wrap" id="wheel-wrap">
             <div class="wheel-glow" aria-hidden="true"></div>
@@ -1229,12 +1229,13 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
         </div>
 
         <div class="stage-col">
-          <div class="card prizes-card">
+          <div class="card prizes-card winners-card">
             <div class="prizes-head">
-              <div class="eyebrow">Premios de la noche</div>
-              <span class="chip chip-gold" id="prizes-progress">0/0</span>
+              <div class="eyebrow">Ganadores de la noche</div>
+              <span class="chip chip-gold" id="winners-count">0</span>
             </div>
-            <ul class="prize-list" id="prize-list"></ul>
+            <ul class="prize-list" id="winner-list"></ul>
+            <div class="feed-empty" id="winner-list-empty">Todavía no salió ningún ganador. Tocá GIRAR cuando RRHH indique el sorteo por micrófono.</div>
           </div>
         </div>
       </div>
@@ -1243,7 +1244,6 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
       <div class="overlay" id="winner-overlay" role="dialog" aria-modal="true" aria-labelledby="winner-eyebrow">
         <div class="winner-card" id="winner-card">
           <div class="eyebrow" id="winner-eyebrow">¡TENEMOS GANADOR!</div>
-          <div class="winner-prize" id="winner-prize"></div>
           <div class="winner-number" id="winner-number"></div>
           <div class="winner-mystery-box" id="winner-mystery-box" hidden>
             <div class="mystery-badge">🔒 Nombre oculto · Modo suspenso</div>
@@ -1256,7 +1256,7 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
               👁️ Descubrir nombre ganador
             </button>
             <button class="btn btn-gold btn-lg" id="winner-confirm">
-              ✓ Confirmar entrega
+              ✓ Confirmar ganador
             </button>
             <button class="btn btn-ghost btn-lg" id="winner-absent">No está · girar de nuevo</button>
           </div>
@@ -1273,7 +1273,7 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
           <div>
             <div class="eyebrow">Panel del Organizador · Desbloqueado con contraseña</div>
             <h1>Control de Inscriptos, Ruleta y Seguridad</h1>
-            <p>Administrá los participantes, cargá premios, simulá pruebas o exportá el listado final a Excel (CSV).</p>
+            <p>Administrá los participantes, simulá pruebas o exportá el listado final a Excel (CSV).</p>
           </div>
           <div class="row" style="display:flex;gap:8px;flex-wrap:wrap">
             <button class="btn btn-primary btn-sm" id="go-ruleta-btn">🎡 Ir a la Ruleta ahora</button>
@@ -1286,7 +1286,7 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
         <div class="stats">
           <div class="card stat accent"><div class="eyebrow">Total inscriptos</div><div class="v" id="st-present">0</div><div class="s" id="st-present-pct">Únicos por DNI + Nombre</div></div>
           <div class="card stat"><div class="eyebrow">En la ruleta</div><div class="v" id="st-wheel">0</div><div class="s">Habilitados para ganar</div></div>
-          <div class="card stat"><div class="eyebrow">Premios entregados</div><div class="v" id="st-prizes">0/0</div><div class="s" id="st-prizes-left">0 por sortear</div></div>
+          <div class="card stat"><div class="eyebrow">Ganadores sorteados</div><div class="v" id="st-winners">0</div><div class="s">Rondas confirmadas</div></div>
           <div class="card stat"><div class="eyebrow">Duplicados bloqueados</div><div class="v" id="st-dupes">0</div><div class="s">Intentos de repetir DNI o Nombre</div></div>
         </div>
 
@@ -1320,20 +1320,11 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
                   <button class="btn btn-primary btn-sm" id="cfg-pass-save">Guardar</button>
                 </div>
               </div>
-              <label class="switch"><span>Quitar ganadores de la ruleta<small>Evita que la misma persona gane 2 premios</small></span><input type="checkbox" id="cfg-remove" /></label>
+              <label class="switch"><span>Quitar ganadores de la ruleta<small>Evita que la misma persona salga ganadora dos veces</small></span><input type="checkbox" id="cfg-remove" /></label>
               <label class="switch"><span>Mostrar nombres en la ruleta<small>Si se apaga (Modo Números), el nombre ganador queda oculto hasta descubrirlo</small></span><input type="checkbox" id="cfg-names" /></label>
               <label class="switch"><span>Validar contra padrón pre-cargado<small>Solo permite DNIs que estén en la lista importada</small></span><input type="checkbox" id="cfg-roster-only" /></label>
               <label class="switch"><span>Sonidos de giro y celebración<small>Efectos de púa y fanfarria</small></span><input type="checkbox" id="cfg-sound" /></label>
             </div>
-          </div>
-
-          <div class="card panel">
-            <h3>Premios <span class="help" id="prize-count"></span></h3>
-            <ul class="prize-edit" id="prize-edit"></ul>
-            <form class="row" id="prize-form">
-              <input class="input" id="prize-new" placeholder="Nuevo premio…" />
-              <button class="btn btn-primary btn-sm" type="submit">Agregar</button>
-            </form>
           </div>
 
           <div class="card panel">
@@ -1422,26 +1413,14 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
   const LAST = ['González', 'Rodríguez', 'Gómez', 'Fernández', 'López', 'Díaz', 'Martínez', 'Pérez', 'García', 'Sánchez',
     'Romero', 'Sosa', 'Álvarez', 'Torres', 'Ruiz', 'Ramírez', 'Flores', 'Acosta', 'Benítez', 'Medina',
     'Herrera', 'Suárez', 'Aguirre', 'Giménez', 'Molina', 'Castro', 'Ortiz', 'Silva', 'Núñez', 'Luna'];
-  const DEFAULT_PRIZES = [
-    'Kit Corporativo Addiuva',
-    'Auriculares Inalámbricos',
-    'Día Libre Extra',
-    'Cena para Dos Personas',
-    'Parlante Bluetooth',
-    'Smartwatch',
-    'Tablet 10"',
-    'Smart TV 50"',
-    'Estadía Fin de Semana'
-  ];
-
   function uid() { return Math.random().toString(36).slice(2, 9); }
 
   function defaultState() {
     return {
-      employees: [], // inscriptos reales [{ dni, nombre, normNombre, wordsKey, numero, checkin, premio, ausente }]
+      employees: [], // inscriptos reales [{ dni, nombre, numero, checkin, premio, ausente }]
       roster: [],    // padrón opcional [{ dni, nombre }]
-      prizes: DEFAULT_PRIZES.map((nombre) => ({ id: uid(), nombre, ganador: null })),
-      current: 0,
+      prizes: [],
+      draws: [],     // ganadores confirmados [{ id, round, dni, nombre, numero, at }]
       seq: 0,
       dupes: 0,
       config: {
@@ -1452,6 +1431,13 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
         sound: true
       }
     };
+  }
+
+  function normalizeState(s) {
+    if (!s || !Array.isArray(s.employees) || !s.config) return defaultState();
+    s.prizes = [];
+    if (!Array.isArray(s.draws)) s.draws = [];
+    return s;
   }
 
   /* ---------------- Normalización estricta de DNI y Nombre ---------------- */
@@ -1499,7 +1485,15 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
   function loadLocal() {
     try {
       const s = JSON.parse(localStorage.getItem(KEY));
-      if (s && Array.isArray(s.employees) && s.config) return s;
+      if (s && Array.isArray(s.employees) && s.config) {
+        const hadLegacyPrizes = Array.isArray(s.prizes) && s.prizes.length > 0;
+        const missingDraws = !Array.isArray(s.draws);
+        const norm = normalizeState(s);
+        if (hadLegacyPrizes || missingDraws) {
+          try { localStorage.setItem(KEY, JSON.stringify(norm)); } catch (_) { /* ignore */ }
+        }
+        return norm;
+      }
     } catch (_) { /* ignore */ }
     const s = defaultState();
     try { localStorage.setItem(KEY, JSON.stringify(s)); } catch (_) { /* ignore */ }
@@ -1546,16 +1540,17 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
       if (!res.ok) return false;
       const remote = await res.json();
       if (remote && Array.isArray(remote.employees)) {
+        const normalized = normalizeState(remote);
         const firstConnect = !hasNativeServer;
         hasNativeServer = true;
         if (firstConnect && liveSupported === null) runLiveBootstrap = true;
         if (inflightSaves > 0 || saveSeqAtStart !== localSaveSeq) {
           return true;
         }
-        const remoteJson = JSON.stringify(remote);
+        const remoteJson = JSON.stringify(normalized);
         if (remoteJson !== lastStateJson && !wheel.spinning && !overlayOpen) {
           lastStateJson = remoteJson;
-          state = remote;
+          state = normalized;
           try { localStorage.setItem(KEY, remoteJson); } catch (_) {}
           renderAll();
         }
@@ -1708,7 +1703,8 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
   const eligible = () => present()
     .filter((e) => !e.ausente && !(state.config.removeWinners && e.premio))
     .sort((a, b) => a.numero - b.numero);
-  const currentPrize = () => state.prizes[state.current] || null;
+  const nextRoundNum = (draws = state.draws || []) =>
+    draws.reduce((m, d) => Math.max(m, Number(d.round) || 0), 0) + 1;
 
   /* ---------------- Reglas Anti-Duplicado (DNI + Nombre Completo) ---------------- */
   function validateCandidate(rawDni, rawNombre) {
@@ -1772,15 +1768,6 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
     state.employees.push(emp);
     if (persist) save();
     return { emp };
-  }
-
-  function nextOpenPrize(from) {
-    const n = state.prizes.length;
-    for (let k = 1; k <= n; k++) {
-      const i = (from + k) % n;
-      if (!state.prizes[i].ganador) return i;
-    }
-    return from;
   }
 
   /* ---------------- Audio (WebAudio sintetizado) ---------------- */
@@ -1937,9 +1924,9 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
     return Math.floor(mod(-Math.PI / 2 - rot, TAU) / seg) % n;
   }
 
-  function animateWheelSpin({ items, winnerEmp, prize, startRot, endRot, duration, silent = false }) {
+  function animateWheelSpin({ items, winnerEmp, startRot, endRot, duration, silent = false }) {
     const n = items.length;
-    if (!n || !winnerEmp || !prize) return;
+    if (!n || !winnerEmp) return;
     if (!silent) ac();
 
     const t0 = performance.now();
@@ -1965,7 +1952,7 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
         wheel.spinning = false;
         const doAutoReveal = pendingRemoteReveal;
         pendingRemoteReveal = false;
-        showWinner(winnerEmp, prize, { silent });
+        showWinner(winnerEmp, { silent });
         if (doAutoReveal) revealWinner({ remote: true });
       }
     }
@@ -1974,9 +1961,6 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
 
   function spin() {
     if (wheel.spinning || overlayOpen) return;
-    const prize = currentPrize();
-    if (!prize) { toast('Agregá premios desde el Panel Admin'); return; }
-    if (prize.ganador) { toast('Ese premio ya fue sorteado · elegí otro con las flechas'); return; }
     if (wheel.dirty) syncWheel();
     const items = wheel.items.slice();
     const n = items.length;
@@ -1995,14 +1979,12 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
       dni: items[w].dni,
       startRot,
       endRot,
-      duration,
-      prizeId: prize.id
+      duration
     });
 
     animateWheelSpin({
       items,
       winnerEmp: items[w],
-      prize,
       startRot,
       endRot,
       duration,
@@ -2029,7 +2011,6 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
       if (wheel.spinning) return;
       if (overlayOpen) closeWinner();
       const needsSync = !wheel.items.some((e) => cleanDni(e.dni) === cleanDni(ev.dni)) ||
-        (ev.prizeId && currentPrize()?.id !== ev.prizeId) ||
         (ev.stateVersion && ev.stateVersion !== lastStateVersion);
       if (needsSync && hasNativeServer) {
         await syncFromServer();
@@ -2043,17 +2024,6 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
         wIdx = items.findIndex((e) => cleanDni(e.dni) === cleanDni(ev.dni));
       }
       if (wIdx < 0) return;
-
-      const prize = (ev.prizeId && state.prizes.find((p) => p.id === ev.prizeId)) || currentPrize();
-      if (!prize) return;
-      const pIdx = state.prizes.indexOf(prize);
-      if (pIdx >= 0 && state.current !== pIdx) {
-        state.current = pIdx;
-        renderPantalla();
-        items = eligible();
-        wIdx = items.findIndex((e) => cleanDni(e.dni) === cleanDni(ev.dni));
-        if (wIdx < 0) return;
-      }
 
       const n = items.length;
       let startRot = typeof ev.startRot === 'number' ? ev.startRot : wheel.rotation;
@@ -2069,7 +2039,6 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
       animateWheelSpin({
         items,
         winnerEmp: items[wIdx],
-        prize,
         startRot,
         endRot,
         duration,
@@ -2078,11 +2047,10 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
     }
   }
 
-  function showWinner(emp, prize, { silent = false } = {}) {
+  function showWinner(emp, { silent = false } = {}) {
     const mysteryMode = !state.config.showNames;
-    pendingWinner = { dni: emp.dni, nombre: emp.nombre, numero: emp.numero, prizeId: prize.id };
+    pendingWinner = { dni: emp.dni, nombre: emp.nombre, numero: emp.numero };
     overlayOpen = true;
-    $('#winner-prize').textContent = prize.nombre;
     $('#winner-number').textContent = `#${pad(emp.numero)}`;
 
     if (mysteryMode) {
@@ -2163,11 +2131,18 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
   function confirmWinner() {
     if (!pendingWinner || !winnerRevealed || performance.now() < revealLockUntil) return;
     const emp = state.employees.find((e) => cleanDni(e.dni) === cleanDni(pendingWinner.dni));
-    const prize = state.prizes.find((p) => p.id === pendingWinner.prizeId);
-    if (emp && prize) {
-      prize.ganador = { dni: emp.dni, nombre: emp.nombre, numero: emp.numero, at: new Date().toISOString() };
-      emp.premio = prize.nombre;
-      state.current = nextOpenPrize(state.prizes.indexOf(prize));
+    if (emp) {
+      if (!Array.isArray(state.draws)) state.draws = [];
+      const round = nextRoundNum(state.draws);
+      emp.premio = `Ganador #${round}`;
+      state.draws.push({
+        id: uid(),
+        round,
+        dni: emp.dni,
+        nombre: emp.nombre,
+        numero: emp.numero,
+        at: new Date().toISOString()
+      });
     }
     closeWinner();
     save();
@@ -2254,17 +2229,17 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
       `<li class="${showNames ? '' : 'masked'}"><span class="num">#${pad(e.numero)}</span><span class="who">${showNames ? esc(e.nombre) : 'Nombre oculto'}</span><time>${fmtTime(e.checkin)}</time></li>`).join('');
     $('#feed-empty').hidden = recent.length > 0;
 
-    const p = currentPrize();
-    const done = state.prizes.filter((x) => x.ganador).length;
-    $('#current-prize').textContent = !state.prizes.length ? 'Sin premios cargados'
-      : done === state.prizes.length ? '¡Sorteo finalizado! 🎉'
-      : p ? p.nombre + (p.ganador ? ' (ya sorteado)' : '') : '—';
-    $('#prizes-progress').textContent = `${done}/${state.prizes.length}`;
-    $('#prize-list').innerHTML = state.prizes.map((x, i) => {
-      const cls = [x.ganador ? 'done' : '', i === state.current ? 'current' : ''].join(' ');
-      const sub = x.ganador ? `#${pad(x.ganador.numero)} · ${esc(x.ganador.nombre)}` : i === state.current ? 'Sorteando ahora' : 'Por sortear';
-      return `<li class="prize-item ${cls}" data-idx="${i}"><span class="idx">${x.ganador ? '✓' : i + 1}</span><span class="pname">${esc(x.nombre)}</span><span class="pwinner">${sub}</span></li>`;
+    const draws = state.draws || [];
+    $('#current-round').textContent = `Ronda #${nextRoundNum(draws)}`;
+    $('#winners-count').textContent = String(draws.length);
+    const ordered = draws.slice().reverse();
+    $('#winner-list').innerHTML = ordered.map((d, idx) => {
+      const latestCls = idx === 0 ? 'latest' : '';
+      const roundNum = d.round || (draws.length - idx);
+      const timeStr = d.at ? `Confirmado · ${fmtTime(d.at)}` : 'Ganador confirmado';
+      return `<li class="prize-item winner-item done ${latestCls}"><span class="idx">#${roundNum}</span><span class="pname">#${pad(d.numero)} · ${esc(d.nombre)}</span><span class="pwinner">${timeStr}</span></li>`;
     }).join('');
+    $('#winner-list-empty').hidden = draws.length > 0;
 
     syncWheel();
   }
@@ -2273,14 +2248,13 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
   function renderAdmin() {
     const pres = present();
     const elig = eligible();
-    const done = state.prizes.filter((x) => x.ganador).length;
+    const draws = state.draws || [];
     $('#st-present').textContent = pres.length;
     $('#st-present-pct').textContent = state.config.rosterOnly && state.roster.length
       ? `Padrón activo (${state.roster.length} en lista)`
       : 'Únicos por DNI + Nombre';
     $('#st-wheel').textContent = elig.length;
-    $('#st-prizes').textContent = `${done}/${state.prizes.length}`;
-    $('#st-prizes-left').textContent = `${state.prizes.length - done} por sortear`;
+    $('#st-winners').textContent = String(draws.length);
     $('#st-dupes').textContent = state.dupes || 0;
 
     const q = $('#search').value.trim().toLowerCase();
@@ -2296,7 +2270,7 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
       let status;
       const acts = [];
       if (e.premio) {
-        status = `<span class="chip chip-gold">🏆 Ganó · ${esc(e.premio)}</span>`;
+        status = `<span class="chip chip-gold">🏆 ${esc(e.premio)}</span>`;
       } else if (e.ausente) {
         status = '<span class="chip chip-danger">Ausente al salir</span>';
         acts.push(`<button class="btn btn-ghost btn-sm" data-act="restore" data-dni="${e.dni}">Reincorporar</button>`);
@@ -2314,10 +2288,6 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
     $('#cfg-names').checked = !!cfg.showNames;
     $('#cfg-roster-only').checked = !!cfg.rosterOnly;
     $('#cfg-sound').checked = !!cfg.sound;
-
-    $('#prize-count').textContent = `${done}/${state.prizes.length} entregados`;
-    $('#prize-edit').innerHTML = state.prizes.map((p) =>
-      `<li><span>${esc(p.nombre)}</span>${p.ganador ? `<small>#${pad(p.ganador.numero)} ${esc(shortName(p.ganador.nombre))}</small>` : `<button class="x-btn" data-prize="${p.id}" aria-label="Quitar ${esc(p.nombre)}">✕</button>`}</li>`).join('');
   }
 
   function renderAll() {
@@ -2654,7 +2624,7 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
   }
 
   $('#btn-unlock').addEventListener('click', () => {
-    openAuthModal('Desbloqueá el Kiosco para pasar a la Ruleta, administrar premios o salir a Windows.', () => {
+    openAuthModal('Desbloqueá el Kiosco para pasar a la Ruleta, administrar participantes o salir a Windows.', () => {
       setKioskLocked(false);
       toast('🔓 Modo Administrador desbloqueado');
     });
@@ -2771,24 +2741,6 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
     e.target.blur();
     save();
   });
-  $('#prize-prev').addEventListener('click', (e) => {
-    e.currentTarget.blur();
-    if (!state.prizes.length || wheel.spinning) return;
-    state.current = mod(state.current - 1, state.prizes.length);
-    save();
-  });
-  $('#prize-next').addEventListener('click', (e) => {
-    e.currentTarget.blur();
-    if (!state.prizes.length || wheel.spinning) return;
-    state.current = mod(state.current + 1, state.prizes.length);
-    save();
-  });
-  $('#prize-list').addEventListener('click', (e) => {
-    const li = e.target.closest('.prize-item');
-    if (!li || wheel.spinning) return;
-    state.current = Number(li.dataset.idx);
-    save();
-  });
   document.addEventListener('keydown', (e) => {
     if (activeView() !== 'view-pantalla') return;
     const ae = document.activeElement;
@@ -2837,17 +2789,13 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
     if (idx < 0) return;
     const emp = state.employees[idx];
     if (b.dataset.act === 'delete') {
-      const extra = emp.premio ? ` También se liberará el premio «${emp.premio}» para volver a sortearlo.` : '';
+      const extra = emp.premio ? ' También se quitará de la lista de ganadores.' : '';
       openConfirmModal(
         '¿Eliminar participante?',
         `Vas a eliminar a ${emp.nombre} (DNI ${formatDni(emp.dni)}).${extra}`,
         'Sí, eliminar',
         () => {
-          state.prizes.forEach((p) => {
-            if (p.ganador && cleanDni(p.ganador.dni) === cleanDni(emp.dni)) {
-              p.ganador = null;
-            }
-          });
+          state.draws = (state.draws || []).filter((d) => cleanDni(d.dni) !== cleanDni(emp.dni));
           state.employees.splice(idx, 1);
           save();
           toast(`🗑️ ${emp.nombre} eliminado`);
@@ -2889,24 +2837,6 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
   $('#cfg-roster-only').addEventListener('change', (e) => { state.config.rosterOnly = e.target.checked; save(); });
   $('#cfg-sound').addEventListener('change', (e) => { state.config.sound = e.target.checked; save(); });
 
-  $('#prize-form').addEventListener('submit', (e) => {
-    e.preventDefault();
-    const v = $('#prize-new').value.trim();
-    if (!v) return;
-    state.prizes.push({ id: uid(), nombre: v, ganador: null });
-    $('#prize-new').value = '';
-    save();
-  });
-  $('#prize-edit').addEventListener('click', (e) => {
-    const b = e.target.closest('button[data-prize]');
-    if (!b) return;
-    const i = state.prizes.findIndex((p) => p.id === b.dataset.prize);
-    if (i < 0) return;
-    state.prizes.splice(i, 1);
-    if (state.current >= state.prizes.length) state.current = Math.max(0, state.prizes.length - 1);
-    save();
-  });
-
   $('#import-btn').addEventListener('click', () => {
     const lines = $('#import-text').value.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
     const seen = new Set();
@@ -2930,7 +2860,7 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
   $('#reset-btn').addEventListener('click', () => {
     openConfirmModal(
       '¿Borrar todo y empezar de cero?',
-      'Se eliminarán todos los participantes inscriptos y se reiniciarán los premios entregados.',
+      'Se eliminarán todos los participantes inscriptos y se reiniciará la lista de ganadores.',
       'Sí, borrar todo',
       () => {
         const keepPass = state.config.adminPass;
@@ -2944,7 +2874,7 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
   });
 
   $('#export-csv').addEventListener('click', () => {
-    const head = ['numero', 'dni', 'nombre_completo', 'hora_inscripcion', 'premio_ganado'];
+    const head = ['numero', 'dni', 'nombre_completo', 'hora_inscripcion', 'resultado'];
     const rows = state.employees.map((e) => [
       e.numero ? pad(e.numero) : '',
       e.dni,

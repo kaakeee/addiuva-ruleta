@@ -621,7 +621,7 @@ body:not(.kiosk-locked) .top-actions { margin-left: 0; }
   display: flex;
   align-items: center;
   gap: clamp(10px, 1vw, 28px);
-  padding: clamp(6px, 0.7vh, 16px) clamp(10px, 0.9vw, 24px) clamp(6px, 0.7vh, 16px) clamp(16px, 1.4vw, 38px);
+  padding: clamp(8px, 0.8vh, 18px) clamp(20px, 1.8vw, 44px);
   border-radius: 999px;
   background: rgba(0,0,0,0.28);
   border: 1px solid var(--line);
@@ -704,9 +704,10 @@ kbd { font-family: inherit; font-size: 0.92em; padding: 2px 7px; border-radius: 
 .prizes-card { padding: clamp(12px, 1.4vh, 30px) clamp(14px, 1.3vw, 30px); flex: 1; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
 .prizes-head { display: flex; justify-content: space-between; align-items: baseline; flex-shrink: 0; }
 .prize-list { list-style: none; margin: 10px 0 0; padding: 0 4px 0 0; display: flex; flex-direction: column; gap: clamp(5px, 0.7vh, 18px); overflow: auto; flex: 1; min-height: 0; }
+.prize-list:empty { display: none; }
 .prize-item {
   display: grid;
-  grid-template-columns: clamp(26px, 2vw, 56px) 1fr;
+  grid-template-columns: clamp(32px, 2.5vw, 68px) 1fr;
   gap: 2px clamp(8px, 0.8vw, 20px);
   align-items: center;
   padding: clamp(7px, 0.8vh, 22px) clamp(9px, 0.9vw, 22px);
@@ -716,13 +717,16 @@ kbd { font-family: inherit; font-size: 0.92em; padding: 2px 7px; border-radius: 
   cursor: pointer;
 }
 .prize-item:hover { background: rgba(255,255,255,0.06); }
-.prize-item .idx { grid-row: span 2; width: clamp(26px, 2vw, 56px); height: clamp(26px, 2vw, 56px); border-radius: 10px; display: grid; place-items: center; font-size: clamp(12px, 0.9vw, 26px); font-weight: 700; background: rgba(255,255,255,0.08); color: var(--ink-soft); }
+.prize-item .idx { grid-row: span 2; width: clamp(32px, 2.5vw, 68px); height: clamp(28px, 2.1vw, 58px); border-radius: 10px; display: grid; place-items: center; font-size: clamp(11.5px, 0.88vw, 24px); font-weight: 800; background: rgba(255,255,255,0.08); color: var(--ink-soft); }
 .prize-item .pname { font-weight: 600; font-size: clamp(13px, 0.95vw, 30px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .prize-item .pwinner { font-size: clamp(11.5px, 0.82vw, 24px); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.prize-item.current { background: rgba(255, 204, 110, 0.1); border-color: rgba(255, 204, 110, 0.38); }
-.prize-item.current .idx { background: var(--gold); color: #1E1041; }
 .prize-item.done .idx { background: var(--grad-short); color: #fff; }
 .prize-item.done .pwinner { color: var(--ink-soft); }
+.winner-item { cursor: default; }
+.winner-item:hover { background: rgba(255,255,255,0.03); }
+.winner-item.latest { background: rgba(255, 204, 110, 0.12); border-color: rgba(255, 204, 110, 0.38); animation: slideIn .35s ease; }
+.winner-item.latest:hover { background: rgba(255, 204, 110, 0.14); }
+.winner-item.latest .idx { background: var(--gold); color: #1E1041; }
 
 /* ---------- Overlays (Ganador + Contraseña Admin) ---------- */
 .overlay {
@@ -897,8 +901,8 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
   body.hdmi-clean .wheel-wrap { width: min(100%, calc(100vh - 205px), 620px); margin-top: 6px; }
   .prizes-card { padding: 12px 14px; }
   .prize-list { gap: 4px; margin-top: 8px; }
-  .prize-item { padding: 5px 8px; gap: 1px 8px; }
-  .prize-item .idx { width: 24px; height: 24px; font-size: 11.5px; }
+  .prize-item { padding: 5px 8px; gap: 1px 8px; grid-template-columns: 28px 1fr; }
+  .prize-item .idx { width: 28px; height: 24px; font-size: 11px; }
   .prize-item .pname { font-size: 12.5px; }
   .prize-item .pwinner { font-size: 11px; }
 }

@@ -262,13 +262,9 @@
         </div>
 
         <div class="wheel-col">
-          <div class="prize-banner">
-            <span class="label">Ahora sorteamos</span>
-            <span class="name" id="current-prize">—</span>
-            <div class="prize-nav">
-              <button class="icon-btn" id="prize-prev" aria-label="Premio anterior"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg></button>
-              <button class="icon-btn" id="prize-next" aria-label="Premio siguiente"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg></button>
-            </div>
+          <div class="prize-banner stage-banner">
+            <span class="label">Sorteo en vivo</span>
+            <span class="name" id="current-round">Ronda #1</span>
           </div>
           <div class="wheel-wrap" id="wheel-wrap">
             <div class="wheel-glow" aria-hidden="true"></div>
@@ -290,12 +286,13 @@
         </div>
 
         <div class="stage-col">
-          <div class="card prizes-card">
+          <div class="card prizes-card winners-card">
             <div class="prizes-head">
-              <div class="eyebrow">Premios de la noche</div>
-              <span class="chip chip-gold" id="prizes-progress">0/0</span>
+              <div class="eyebrow">Ganadores de la noche</div>
+              <span class="chip chip-gold" id="winners-count">0</span>
             </div>
-            <ul class="prize-list" id="prize-list"></ul>
+            <ul class="prize-list" id="winner-list"></ul>
+            <div class="feed-empty" id="winner-list-empty">Todavía no salió ningún ganador. Tocá GIRAR cuando RRHH indique el sorteo por micrófono.</div>
           </div>
         </div>
       </div>
@@ -304,7 +301,6 @@
       <div class="overlay" id="winner-overlay" role="dialog" aria-modal="true" aria-labelledby="winner-eyebrow">
         <div class="winner-card" id="winner-card">
           <div class="eyebrow" id="winner-eyebrow">¡TENEMOS GANADOR!</div>
-          <div class="winner-prize" id="winner-prize"></div>
           <div class="winner-number" id="winner-number"></div>
           <div class="winner-mystery-box" id="winner-mystery-box" hidden>
             <div class="mystery-badge">🔒 Nombre oculto · Modo suspenso</div>
@@ -317,7 +313,7 @@
               👁️ Descubrir nombre ganador
             </button>
             <button class="btn btn-gold btn-lg" id="winner-confirm">
-              ✓ Confirmar entrega
+              ✓ Confirmar ganador
             </button>
             <button class="btn btn-ghost btn-lg" id="winner-absent">No está · girar de nuevo</button>
           </div>
@@ -334,7 +330,7 @@
           <div>
             <div class="eyebrow">Panel del Organizador · Desbloqueado con contraseña</div>
             <h1>Control de Inscriptos, Ruleta y Seguridad</h1>
-            <p>Administrá los participantes, cargá premios, simulá pruebas o exportá el listado final a Excel (CSV).</p>
+            <p>Administrá los participantes, simulá pruebas o exportá el listado final a Excel (CSV).</p>
           </div>
           <div class="row" style="display:flex;gap:8px;flex-wrap:wrap">
             <button class="btn btn-primary btn-sm" id="go-ruleta-btn">🎡 Ir a la Ruleta ahora</button>
@@ -347,7 +343,7 @@
         <div class="stats">
           <div class="card stat accent"><div class="eyebrow">Total inscriptos</div><div class="v" id="st-present">0</div><div class="s" id="st-present-pct">Únicos por DNI + Nombre</div></div>
           <div class="card stat"><div class="eyebrow">En la ruleta</div><div class="v" id="st-wheel">0</div><div class="s">Habilitados para ganar</div></div>
-          <div class="card stat"><div class="eyebrow">Premios entregados</div><div class="v" id="st-prizes">0/0</div><div class="s" id="st-prizes-left">0 por sortear</div></div>
+          <div class="card stat"><div class="eyebrow">Ganadores sorteados</div><div class="v" id="st-winners">0</div><div class="s">Rondas confirmadas</div></div>
           <div class="card stat"><div class="eyebrow">Duplicados bloqueados</div><div class="v" id="st-dupes">0</div><div class="s">Intentos de repetir DNI o Nombre</div></div>
         </div>
 
@@ -381,20 +377,11 @@
                   <button class="btn btn-primary btn-sm" id="cfg-pass-save">Guardar</button>
                 </div>
               </div>
-              <label class="switch"><span>Quitar ganadores de la ruleta<small>Evita que la misma persona gane 2 premios</small></span><input type="checkbox" id="cfg-remove" /></label>
+              <label class="switch"><span>Quitar ganadores de la ruleta<small>Evita que la misma persona salga ganadora dos veces</small></span><input type="checkbox" id="cfg-remove" /></label>
               <label class="switch"><span>Mostrar nombres en la ruleta<small>Si se apaga (Modo Números), el nombre ganador queda oculto hasta descubrirlo</small></span><input type="checkbox" id="cfg-names" /></label>
               <label class="switch"><span>Validar contra padrón pre-cargado<small>Solo permite DNIs que estén en la lista importada</small></span><input type="checkbox" id="cfg-roster-only" /></label>
               <label class="switch"><span>Sonidos de giro y celebración<small>Efectos de púa y fanfarria</small></span><input type="checkbox" id="cfg-sound" /></label>
             </div>
-          </div>
-
-          <div class="card panel">
-            <h3>Premios <span class="help" id="prize-count"></span></h3>
-            <ul class="prize-edit" id="prize-edit"></ul>
-            <form class="row" id="prize-form">
-              <input class="input" id="prize-new" placeholder="Nuevo premio…" />
-              <button class="btn btn-primary btn-sm" type="submit">Agregar</button>
-            </form>
           </div>
 
           <div class="card panel">

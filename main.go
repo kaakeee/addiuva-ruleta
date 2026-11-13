@@ -47,6 +47,15 @@ type Prize struct {
 	Ganador *WinnerInfo `json:"ganador"`
 }
 
+type DrawInfo struct {
+	ID     string `json:"id"`
+	Round  int    `json:"round"`
+	Dni    string `json:"dni"`
+	Nombre string `json:"nombre"`
+	Numero int    `json:"numero"`
+	At     string `json:"at"`
+}
+
 type AppConfig struct {
 	AdminPass     string `json:"adminPass"`
 	RemoveWinners bool   `json:"removeWinners"`
@@ -59,6 +68,7 @@ type AppState struct {
 	Employees []Employee   `json:"employees"`
 	Roster    []RosterItem `json:"roster"`
 	Prizes    []Prize      `json:"prizes"`
+	Draws     []DrawInfo   `json:"draws"`
 	Current   int          `json:"current"`
 	Seq       int          `json:"seq"`
 	Dupes     int          `json:"dupes"`
@@ -90,25 +100,11 @@ var (
 )
 
 func defaultAppState() AppState {
-	prizes := []string{
-		"Kit Corporativo Addiuva",
-		"Auriculares Inalámbricos",
-		"Día Libre Extra",
-		"Cena para Dos Personas",
-		"Parlante Bluetooth",
-		"Smartwatch",
-		"Tablet 10\"",
-		"Smart TV 50\"",
-		"Estadía Fin de Semana",
-	}
-	pList := make([]Prize, len(prizes))
-	for i, name := range prizes {
-		pList[i] = Prize{ID: fmt.Sprintf("p%d", i+1), Nombre: name, Ganador: nil}
-	}
 	return AppState{
 		Employees: []Employee{},
 		Roster:    []RosterItem{},
-		Prizes:    pList,
+		Prizes:    []Prize{},
+		Draws:     []DrawInfo{},
 		Current:   0,
 		Seq:       0,
 		Dupes:     0,
@@ -139,6 +135,10 @@ func loadStateFromDisk() {
 	if strings.TrimSpace(st.Config.AdminPass) == "" {
 		st.Config.AdminPass = "2026"
 	}
+	st.Prizes = []Prize{}
+	if st.Draws == nil {
+		st.Draws = []DrawInfo{}
+	}
 	currentState = st
 }
 
@@ -160,7 +160,7 @@ func writeCsvBackupLocked() error {
 	var buf bytes.Buffer
 	buf.Write([]byte{0xEF, 0xBB, 0xBF}) // UTF-8 BOM para Excel en Windows
 	w := csv.NewWriter(&buf)
-	_ = w.Write([]string{"numero", "dni", "nombre_completo", "hora_inscripcion", "premio_ganado"})
+	_ = w.Write([]string{"numero", "dni", "nombre_completo", "hora_inscripcion", "resultado"})
 	for _, e := range currentState.Employees {
 		premio := ""
 		if e.Premio != nil {
@@ -230,6 +230,10 @@ func main() {
 			mu.Lock()
 			if strings.TrimSpace(incoming.Config.AdminPass) == "" {
 				incoming.Config.AdminPass = currentState.Config.AdminPass
+			}
+			incoming.Prizes = []Prize{}
+			if incoming.Draws == nil {
+				incoming.Draws = []DrawInfo{}
 			}
 			currentState = incoming
 			stateVersion++

@@ -38,8 +38,8 @@ CONTRASEÑA DE ADMINISTRADOR (POR DEFECTO: 2026)
   3. Se habilitarán arriba las pestañas:
      - "1. Inscripción (Kiosco)"
      - "2. Generar Ruleta"
-     - "3. Admin / Datos" (acá podés cambiar la contraseña, cargar
-       premios o exportar a Excel)
+     - "3. Admin / Datos" (acá podés cambiar la contraseña, administrar
+       participantes o exportar a Excel)
      - "🔒 Bloquear Kiosco" (vuelve a ocultar los controles)
      - "🖥️ Ventana HDMI" (abre una 2.ª ventana limpia solo con la ruleta
        para arrastrar al proyector HDMI en modo "Extender pantalla")

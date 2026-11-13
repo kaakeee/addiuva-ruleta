@@ -28,26 +28,14 @@
   const LAST = ['González', 'Rodríguez', 'Gómez', 'Fernández', 'López', 'Díaz', 'Martínez', 'Pérez', 'García', 'Sánchez',
     'Romero', 'Sosa', 'Álvarez', 'Torres', 'Ruiz', 'Ramírez', 'Flores', 'Acosta', 'Benítez', 'Medina',
     'Herrera', 'Suárez', 'Aguirre', 'Giménez', 'Molina', 'Castro', 'Ortiz', 'Silva', 'Núñez', 'Luna'];
-  const DEFAULT_PRIZES = [
-    'Kit Corporativo Addiuva',
-    'Auriculares Inalámbricos',
-    'Día Libre Extra',
-    'Cena para Dos Personas',
-    'Parlante Bluetooth',
-    'Smartwatch',
-    'Tablet 10"',
-    'Smart TV 50"',
-    'Estadía Fin de Semana'
-  ];
-
   function uid() { return Math.random().toString(36).slice(2, 9); }
 
   function defaultState() {
     return {
-      employees: [], // inscriptos reales [{ dni, nombre, normNombre, wordsKey, numero, checkin, premio, ausente }]
+      employees: [], // inscriptos reales [{ dni, nombre, numero, checkin, premio, ausente }]
       roster: [],    // padrón opcional [{ dni, nombre }]
-      prizes: DEFAULT_PRIZES.map((nombre) => ({ id: uid(), nombre, ganador: null })),
-      current: 0,
+      prizes: [],
+      draws: [],     // ganadores confirmados [{ id, round, dni, nombre, numero, at }]
       seq: 0,
       dupes: 0,
       config: {
@@ -58,6 +46,13 @@
         sound: true
       }
     };
+  }
+
+  function normalizeState(s) {
+    if (!s || !Array.isArray(s.employees) || !s.config) return defaultState();
+    s.prizes = [];
+    if (!Array.isArray(s.draws)) s.draws = [];
+    return s;
   }
 
   /* ---------------- Normalización estricta de DNI y Nombre ---------------- */
@@ -105,7 +100,15 @@
   function loadLocal() {
     try {
       const s = JSON.parse(localStorage.getItem(KEY));
-      if (s && Array.isArray(s.employees) && s.config) return s;
+      if (s && Array.isArray(s.employees) && s.config) {
+        const hadLegacyPrizes = Array.isArray(s.prizes) && s.prizes.length > 0;
+        const missingDraws = !Array.isArray(s.draws);
+        const norm = normalizeState(s);
+        if (hadLegacyPrizes || missingDraws) {
+          try { localStorage.setItem(KEY, JSON.stringify(norm)); } catch (_) { /* ignore */ }
+        }
+        return norm;
+      }
     } catch (_) { /* ignore */ }
     const s = defaultState();
     try { localStorage.setItem(KEY, JSON.stringify(s)); } catch (_) { /* ignore */ }
@@ -152,16 +155,17 @@
       if (!res.ok) return false;
       const remote = await res.json();
       if (remote && Array.isArray(remote.employees)) {
+        const normalized = normalizeState(remote);
         const firstConnect = !hasNativeServer;
         hasNativeServer = true;
         if (firstConnect && liveSupported === null) runLiveBootstrap = true;
         if (inflightSaves > 0 || saveSeqAtStart !== localSaveSeq) {
           return true;
         }
-        const remoteJson = JSON.stringify(remote);
+        const remoteJson = JSON.stringify(normalized);
         if (remoteJson !== lastStateJson && !wheel.spinning && !overlayOpen) {
           lastStateJson = remoteJson;
-          state = remote;
+          state = normalized;
           try { localStorage.setItem(KEY, remoteJson); } catch (_) {}
           renderAll();
         }
@@ -314,7 +318,8 @@
   const eligible = () => present()
     .filter((e) => !e.ausente && !(state.config.removeWinners && e.premio))
     .sort((a, b) => a.numero - b.numero);
-  const currentPrize = () => state.prizes[state.current] || null;
+  const nextRoundNum = (draws = state.draws || []) =>
+    draws.reduce((m, d) => Math.max(m, Number(d.round) || 0), 0) + 1;
 
   /* ---------------- Reglas Anti-Duplicado (DNI + Nombre Completo) ---------------- */
   function validateCandidate(rawDni, rawNombre) {
@@ -378,15 +383,6 @@
     state.employees.push(emp);
     if (persist) save();
     return { emp };
-  }
-
-  function nextOpenPrize(from) {
-    const n = state.prizes.length;
-    for (let k = 1; k <= n; k++) {
-      const i = (from + k) % n;
-      if (!state.prizes[i].ganador) return i;
-    }
-    return from;
   }
 
   /* ---------------- Audio (WebAudio sintetizado) ---------------- */
@@ -543,9 +539,9 @@
     return Math.floor(mod(-Math.PI / 2 - rot, TAU) / seg) % n;
   }
 
-  function animateWheelSpin({ items, winnerEmp, prize, startRot, endRot, duration, silent = false }) {
+  function animateWheelSpin({ items, winnerEmp, startRot, endRot, duration, silent = false }) {
     const n = items.length;
-    if (!n || !winnerEmp || !prize) return;
+    if (!n || !winnerEmp) return;
     if (!silent) ac();
 
     const t0 = performance.now();
@@ -571,7 +567,7 @@
         wheel.spinning = false;
         const doAutoReveal = pendingRemoteReveal;
         pendingRemoteReveal = false;
-        showWinner(winnerEmp, prize, { silent });
+        showWinner(winnerEmp, { silent });
         if (doAutoReveal) revealWinner({ remote: true });
       }
     }
@@ -580,9 +576,6 @@
 
   function spin() {
     if (wheel.spinning || overlayOpen) return;
-    const prize = currentPrize();
-    if (!prize) { toast('Agregá premios desde el Panel Admin'); return; }
-    if (prize.ganador) { toast('Ese premio ya fue sorteado · elegí otro con las flechas'); return; }
     if (wheel.dirty) syncWheel();
     const items = wheel.items.slice();
     const n = items.length;
@@ -601,14 +594,12 @@
       dni: items[w].dni,
       startRot,
       endRot,
-      duration,
-      prizeId: prize.id
+      duration
     });
 
     animateWheelSpin({
       items,
       winnerEmp: items[w],
-      prize,
       startRot,
       endRot,
       duration,
@@ -635,7 +626,6 @@
       if (wheel.spinning) return;
       if (overlayOpen) closeWinner();
       const needsSync = !wheel.items.some((e) => cleanDni(e.dni) === cleanDni(ev.dni)) ||
-        (ev.prizeId && currentPrize()?.id !== ev.prizeId) ||
         (ev.stateVersion && ev.stateVersion !== lastStateVersion);
       if (needsSync && hasNativeServer) {
         await syncFromServer();
@@ -649,17 +639,6 @@
         wIdx = items.findIndex((e) => cleanDni(e.dni) === cleanDni(ev.dni));
       }
       if (wIdx < 0) return;
-
-      const prize = (ev.prizeId && state.prizes.find((p) => p.id === ev.prizeId)) || currentPrize();
-      if (!prize) return;
-      const pIdx = state.prizes.indexOf(prize);
-      if (pIdx >= 0 && state.current !== pIdx) {
-        state.current = pIdx;
-        renderPantalla();
-        items = eligible();
-        wIdx = items.findIndex((e) => cleanDni(e.dni) === cleanDni(ev.dni));
-        if (wIdx < 0) return;
-      }
 
       const n = items.length;
       let startRot = typeof ev.startRot === 'number' ? ev.startRot : wheel.rotation;
@@ -675,7 +654,6 @@
       animateWheelSpin({
         items,
         winnerEmp: items[wIdx],
-        prize,
         startRot,
         endRot,
         duration,
@@ -684,11 +662,10 @@
     }
   }
 
-  function showWinner(emp, prize, { silent = false } = {}) {
+  function showWinner(emp, { silent = false } = {}) {
     const mysteryMode = !state.config.showNames;
-    pendingWinner = { dni: emp.dni, nombre: emp.nombre, numero: emp.numero, prizeId: prize.id };
+    pendingWinner = { dni: emp.dni, nombre: emp.nombre, numero: emp.numero };
     overlayOpen = true;
-    $('#winner-prize').textContent = prize.nombre;
     $('#winner-number').textContent = `#${pad(emp.numero)}`;
 
     if (mysteryMode) {
@@ -769,11 +746,18 @@
   function confirmWinner() {
     if (!pendingWinner || !winnerRevealed || performance.now() < revealLockUntil) return;
     const emp = state.employees.find((e) => cleanDni(e.dni) === cleanDni(pendingWinner.dni));
-    const prize = state.prizes.find((p) => p.id === pendingWinner.prizeId);
-    if (emp && prize) {
-      prize.ganador = { dni: emp.dni, nombre: emp.nombre, numero: emp.numero, at: new Date().toISOString() };
-      emp.premio = prize.nombre;
-      state.current = nextOpenPrize(state.prizes.indexOf(prize));
+    if (emp) {
+      if (!Array.isArray(state.draws)) state.draws = [];
+      const round = nextRoundNum(state.draws);
+      emp.premio = `Ganador #${round}`;
+      state.draws.push({
+        id: uid(),
+        round,
+        dni: emp.dni,
+        nombre: emp.nombre,
+        numero: emp.numero,
+        at: new Date().toISOString()
+      });
     }
     closeWinner();
     save();
@@ -860,17 +844,17 @@
       `<li class="${showNames ? '' : 'masked'}"><span class="num">#${pad(e.numero)}</span><span class="who">${showNames ? esc(e.nombre) : 'Nombre oculto'}</span><time>${fmtTime(e.checkin)}</time></li>`).join('');
     $('#feed-empty').hidden = recent.length > 0;
 
-    const p = currentPrize();
-    const done = state.prizes.filter((x) => x.ganador).length;
-    $('#current-prize').textContent = !state.prizes.length ? 'Sin premios cargados'
-      : done === state.prizes.length ? '¡Sorteo finalizado! 🎉'
-      : p ? p.nombre + (p.ganador ? ' (ya sorteado)' : '') : '—';
-    $('#prizes-progress').textContent = `${done}/${state.prizes.length}`;
-    $('#prize-list').innerHTML = state.prizes.map((x, i) => {
-      const cls = [x.ganador ? 'done' : '', i === state.current ? 'current' : ''].join(' ');
-      const sub = x.ganador ? `#${pad(x.ganador.numero)} · ${esc(x.ganador.nombre)}` : i === state.current ? 'Sorteando ahora' : 'Por sortear';
-      return `<li class="prize-item ${cls}" data-idx="${i}"><span class="idx">${x.ganador ? '✓' : i + 1}</span><span class="pname">${esc(x.nombre)}</span><span class="pwinner">${sub}</span></li>`;
+    const draws = state.draws || [];
+    $('#current-round').textContent = `Ronda #${nextRoundNum(draws)}`;
+    $('#winners-count').textContent = String(draws.length);
+    const ordered = draws.slice().reverse();
+    $('#winner-list').innerHTML = ordered.map((d, idx) => {
+      const latestCls = idx === 0 ? 'latest' : '';
+      const roundNum = d.round || (draws.length - idx);
+      const timeStr = d.at ? `Confirmado · ${fmtTime(d.at)}` : 'Ganador confirmado';
+      return `<li class="prize-item winner-item done ${latestCls}"><span class="idx">#${roundNum}</span><span class="pname">#${pad(d.numero)} · ${esc(d.nombre)}</span><span class="pwinner">${timeStr}</span></li>`;
     }).join('');
+    $('#winner-list-empty').hidden = draws.length > 0;
 
     syncWheel();
   }
@@ -879,14 +863,13 @@
   function renderAdmin() {
     const pres = present();
     const elig = eligible();
-    const done = state.prizes.filter((x) => x.ganador).length;
+    const draws = state.draws || [];
     $('#st-present').textContent = pres.length;
     $('#st-present-pct').textContent = state.config.rosterOnly && state.roster.length
       ? `Padrón activo (${state.roster.length} en lista)`
       : 'Únicos por DNI + Nombre';
     $('#st-wheel').textContent = elig.length;
-    $('#st-prizes').textContent = `${done}/${state.prizes.length}`;
-    $('#st-prizes-left').textContent = `${state.prizes.length - done} por sortear`;
+    $('#st-winners').textContent = String(draws.length);
     $('#st-dupes').textContent = state.dupes || 0;
 
     const q = $('#search').value.trim().toLowerCase();
@@ -902,7 +885,7 @@
       let status;
       const acts = [];
       if (e.premio) {
-        status = `<span class="chip chip-gold">🏆 Ganó · ${esc(e.premio)}</span>`;
+        status = `<span class="chip chip-gold">🏆 ${esc(e.premio)}</span>`;
       } else if (e.ausente) {
         status = '<span class="chip chip-danger">Ausente al salir</span>';
         acts.push(`<button class="btn btn-ghost btn-sm" data-act="restore" data-dni="${e.dni}">Reincorporar</button>`);
@@ -920,10 +903,6 @@
     $('#cfg-names').checked = !!cfg.showNames;
     $('#cfg-roster-only').checked = !!cfg.rosterOnly;
     $('#cfg-sound').checked = !!cfg.sound;
-
-    $('#prize-count').textContent = `${done}/${state.prizes.length} entregados`;
-    $('#prize-edit').innerHTML = state.prizes.map((p) =>
-      `<li><span>${esc(p.nombre)}</span>${p.ganador ? `<small>#${pad(p.ganador.numero)} ${esc(shortName(p.ganador.nombre))}</small>` : `<button class="x-btn" data-prize="${p.id}" aria-label="Quitar ${esc(p.nombre)}">✕</button>`}</li>`).join('');
   }
 
   function renderAll() {
@@ -1260,7 +1239,7 @@
   }
 
   $('#btn-unlock').addEventListener('click', () => {
-    openAuthModal('Desbloqueá el Kiosco para pasar a la Ruleta, administrar premios o salir a Windows.', () => {
+    openAuthModal('Desbloqueá el Kiosco para pasar a la Ruleta, administrar participantes o salir a Windows.', () => {
       setKioskLocked(false);
       toast('🔓 Modo Administrador desbloqueado');
     });
@@ -1377,24 +1356,6 @@
     e.target.blur();
     save();
   });
-  $('#prize-prev').addEventListener('click', (e) => {
-    e.currentTarget.blur();
-    if (!state.prizes.length || wheel.spinning) return;
-    state.current = mod(state.current - 1, state.prizes.length);
-    save();
-  });
-  $('#prize-next').addEventListener('click', (e) => {
-    e.currentTarget.blur();
-    if (!state.prizes.length || wheel.spinning) return;
-    state.current = mod(state.current + 1, state.prizes.length);
-    save();
-  });
-  $('#prize-list').addEventListener('click', (e) => {
-    const li = e.target.closest('.prize-item');
-    if (!li || wheel.spinning) return;
-    state.current = Number(li.dataset.idx);
-    save();
-  });
   document.addEventListener('keydown', (e) => {
     if (activeView() !== 'view-pantalla') return;
     const ae = document.activeElement;
@@ -1443,17 +1404,13 @@
     if (idx < 0) return;
     const emp = state.employees[idx];
     if (b.dataset.act === 'delete') {
-      const extra = emp.premio ? ` También se liberará el premio «${emp.premio}» para volver a sortearlo.` : '';
+      const extra = emp.premio ? ' También se quitará de la lista de ganadores.' : '';
       openConfirmModal(
         '¿Eliminar participante?',
         `Vas a eliminar a ${emp.nombre} (DNI ${formatDni(emp.dni)}).${extra}`,
         'Sí, eliminar',
         () => {
-          state.prizes.forEach((p) => {
-            if (p.ganador && cleanDni(p.ganador.dni) === cleanDni(emp.dni)) {
-              p.ganador = null;
-            }
-          });
+          state.draws = (state.draws || []).filter((d) => cleanDni(d.dni) !== cleanDni(emp.dni));
           state.employees.splice(idx, 1);
           save();
           toast(`🗑️ ${emp.nombre} eliminado`);
@@ -1495,24 +1452,6 @@
   $('#cfg-roster-only').addEventListener('change', (e) => { state.config.rosterOnly = e.target.checked; save(); });
   $('#cfg-sound').addEventListener('change', (e) => { state.config.sound = e.target.checked; save(); });
 
-  $('#prize-form').addEventListener('submit', (e) => {
-    e.preventDefault();
-    const v = $('#prize-new').value.trim();
-    if (!v) return;
-    state.prizes.push({ id: uid(), nombre: v, ganador: null });
-    $('#prize-new').value = '';
-    save();
-  });
-  $('#prize-edit').addEventListener('click', (e) => {
-    const b = e.target.closest('button[data-prize]');
-    if (!b) return;
-    const i = state.prizes.findIndex((p) => p.id === b.dataset.prize);
-    if (i < 0) return;
-    state.prizes.splice(i, 1);
-    if (state.current >= state.prizes.length) state.current = Math.max(0, state.prizes.length - 1);
-    save();
-  });
-
   $('#import-btn').addEventListener('click', () => {
     const lines = $('#import-text').value.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
     const seen = new Set();
@@ -1536,7 +1475,7 @@
   $('#reset-btn').addEventListener('click', () => {
     openConfirmModal(
       '¿Borrar todo y empezar de cero?',
-      'Se eliminarán todos los participantes inscriptos y se reiniciarán los premios entregados.',
+      'Se eliminarán todos los participantes inscriptos y se reiniciará la lista de ganadores.',
       'Sí, borrar todo',
       () => {
         const keepPass = state.config.adminPass;
@@ -1550,7 +1489,7 @@
   });
 
   $('#export-csv').addEventListener('click', () => {
-    const head = ['numero', 'dni', 'nombre_completo', 'hora_inscripcion', 'premio_ganado'];
+    const head = ['numero', 'dni', 'nombre_completo', 'hora_inscripcion', 'resultado'];
     const rows = state.employees.map((e) => [
       e.numero ? pad(e.numero) : '',
       e.dni,
