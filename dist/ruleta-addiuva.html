@@ -42,7 +42,16 @@
   --font: "Segoe UI", system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif;
 }
 
-* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+}
+*::-webkit-scrollbar { width: 6px; height: 6px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 999px; }
+*::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.36); }
 [hidden] { display: none !important; }
 
 html, body {
@@ -61,12 +70,25 @@ html, body {
 input, textarea { user-select: text; }
 
 body {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
   background:
     radial-gradient(1200px 600px at 85% -10%, rgba(231, 92, 224, 0.22), transparent 60%),
     radial-gradient(900px 600px at -10% 110%, rgba(75, 57, 236, 0.30), transparent 60%),
     radial-gradient(700px 500px at 50% 50%, rgba(140, 70, 205, 0.12), transparent 70%),
     var(--bg);
   background-attachment: fixed;
+}
+
+main {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+body.in-admin main {
+  overflow: auto;
 }
 
 /* En modo Kiosco bloqueado se ocultan las pestañas de cambio y botones de admin */
@@ -205,7 +227,7 @@ body:not(.kiosk-locked) .top-actions { margin-left: 0; }
   border-color: rgba(255, 204, 110, 0.4);
 }
 
-.view { display: none; position: relative; z-index: 1; }
+.view { display: none; height: 100%; position: relative; z-index: 1; }
 .view.active { display: block; animation: fadeIn .28s ease; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
 
@@ -305,57 +327,61 @@ body:not(.kiosk-locked) .top-actions { margin-left: 0; }
 /* ---------- VISTA 1: KIOSCO DE INSCRIPCIÓN ---------- */
 .kiosk-shell {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 330px;
-  gap: 22px;
-  padding: 20px 24px;
-  min-height: calc(100vh - 60px);
+  grid-template-columns: minmax(0, 1fr) 310px;
+  gap: 18px;
+  padding: 16px 22px;
+  height: 100%;
+  min-height: 0;
   max-width: 1480px;
   margin: 0 auto;
   align-items: stretch;
 }
 .kiosk-main {
-  padding: 24px 28px;
+  padding: 20px 24px;
   display: flex;
   flex-direction: column;
   justify-content: center;
+  min-height: 0;
+  overflow: auto;
 }
 .kiosk-side {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 14px;
+  min-height: 0;
 }
 
-.k-step { display: none; flex-direction: column; gap: 16px; }
+.k-step { display: none; flex-direction: column; gap: 14px; }
 .k-step.active { display: flex; animation: fadeIn .25s ease; }
 
 .k-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 16px;
+  gap: 14px;
   flex-wrap: wrap;
 }
-.k-header h1 { font-size: clamp(24px, 2.6vw, 34px); margin-top: 3px; }
-.k-sub { color: var(--ink-soft); font-size: 15px; margin-top: 4px; }
+.k-header h1 { font-size: clamp(22px, 2.4vw, 32px); margin-top: 2px; }
+.k-sub { color: var(--ink-soft); font-size: 14.5px; margin-top: 3px; }
 
 .touch-kb-toggle {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 13px;
+  padding: 7px 12px;
   border-radius: 999px;
   background: var(--surface);
   border: 1px solid var(--line);
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 600;
   cursor: pointer;
 }
-.touch-kb-toggle input { accent-color: var(--gold); width: 16px; height: 16px; }
+.touch-kb-toggle input { accent-color: var(--gold); width: 15px; height: 15px; }
 
 .k-fields {
   display: grid;
-  grid-template-columns: 280px minmax(0, 1fr);
-  gap: 16px;
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: 14px;
 }
 .k-actions {
   display: flex;
@@ -367,9 +393,9 @@ body:not(.kiosk-locked) .top-actions { margin-left: 0; }
 
 .k-alert {
   display: none;
-  padding: 13px 16px;
-  border-radius: 14px;
-  font-size: 15px;
+  padding: 11px 14px;
+  border-radius: 13px;
+  font-size: 14px;
   font-weight: 600;
   background: rgba(255, 107, 129, 0.16);
   border: 1.5px solid rgba(255, 107, 129, 0.45);
@@ -380,9 +406,9 @@ body:not(.kiosk-locked) .top-actions { margin-left: 0; }
 
 /* Teclado táctil en pantalla (OSK) */
 .osk {
-  margin-top: 4px;
-  padding: 14px 16px;
-  border-radius: 18px;
+  margin-top: 2px;
+  padding: 12px 14px;
+  border-radius: 16px;
   background: rgba(10, 4, 24, 0.55);
   border: 1px solid var(--line);
 }
@@ -390,9 +416,9 @@ body:not(.kiosk-locked) .top-actions { margin-left: 0; }
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 12.5px;
+  font-size: 12px;
   color: var(--muted);
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 .osk-caption strong { color: var(--gold); }
 .link-btn {
@@ -400,15 +426,15 @@ body:not(.kiosk-locked) .top-actions { margin-left: 0; }
   background: transparent;
   color: var(--gold);
   font-weight: 600;
-  font-size: 13px;
-  padding: 4px 8px;
+  font-size: 12.5px;
+  padding: 3px 8px;
 }
 
-.osk-num { max-width: 520px; margin: 0 auto; }
+.osk-num { max-width: 480px; margin: 0 auto; }
 .numpad-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
+  gap: 7px;
 }
 .numpad-grid button,
 .alpha-row button,
@@ -416,10 +442,10 @@ body:not(.kiosk-locked) .top-actions { margin-left: 0; }
   border: 1px solid rgba(255, 255, 255, 0.14);
   background: rgba(255, 255, 255, 0.08);
   color: #fff;
-  border-radius: 12px;
-  font-size: 21px;
+  border-radius: 11px;
+  font-size: 20px;
   font-weight: 700;
-  min-height: 52px;
+  min-height: 46px;
   transition: background .1s, transform .08s;
 }
 .numpad-grid button:active,
@@ -429,21 +455,21 @@ body:not(.kiosk-locked) .top-actions { margin-left: 0; }
   color: #1E1041;
   transform: scale(0.95);
 }
-.osk-next-btn { width: 100%; margin-top: 10px; min-height: 48px; }
+.osk-next-btn { width: 100%; margin-top: 8px; min-height: 44px; }
 
-.alpha-rows { display: flex; flex-direction: column; gap: 8px; }
-.alpha-row { display: flex; gap: 7px; justify-content: center; }
-.alpha-row button { flex: 1; min-width: 0; min-height: 50px; font-size: 19px; }
-.alpha-row .key-wide { flex: 1.7; font-size: 15px; }
-.alpha-row .key-space { flex: 3.5; font-size: 15px; letter-spacing: 0.12em; }
+.alpha-rows { display: flex; flex-direction: column; gap: 7px; }
+.alpha-row { display: flex; gap: 6px; justify-content: center; }
+.alpha-row button { flex: 1; min-width: 0; min-height: 46px; font-size: 18px; }
+.alpha-row .key-wide { flex: 1.7; font-size: 14px; }
+.alpha-row .key-space { flex: 3.5; font-size: 14px; letter-spacing: 0.12em; }
 .alpha-row .key-ok {
   flex: 1.6;
-  font-size: 15px;
+  font-size: 14px;
   background: linear-gradient(135deg, #FFCC6E 0%, #FFB26B 100%);
   color: #1E1041;
   border-color: transparent;
 }
-.key-fn { background: rgba(255, 255, 255, 0.04) !important; color: var(--ink-soft) !important; font-size: 15px !important; }
+.key-fn { background: rgba(255, 255, 255, 0.04) !important; color: var(--ink-soft) !important; font-size: 14px !important; }
 
 /* Confirmación Paso 2 */
 .confirm-box {
@@ -512,25 +538,26 @@ body:not(.kiosk-locked) .top-actions { margin-left: 0; }
 /* ---------- VISTA 2: PANTALLA GIGANTE / RULETA ---------- */
 .stage {
   display: grid;
-  grid-template-columns: 300px minmax(0, 1fr) 320px;
-  gap: 22px;
-  padding: 20px 26px;
-  height: calc(100vh - 60px);
-  min-height: 600px;
+  grid-template-columns: 280px minmax(0, 1fr) 310px;
+  gap: 18px;
+  padding: 16px 22px;
+  height: 100%;
+  min-height: 0;
   align-items: stretch;
+  overflow: hidden;
 }
-.stage-col { display: flex; flex-direction: column; gap: 18px; min-width: 0; min-height: 0; }
+.stage-col { display: flex; flex-direction: column; gap: 14px; min-width: 0; min-height: 0; }
 
-.counter-card { padding: 18px 20px; }
-.counter-row { display: flex; align-items: baseline; gap: 8px; margin: 6px 0 12px; }
-.counter-big { font-size: 46px; font-weight: 800; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; line-height: 1; color: var(--gold); }
-.counter-total { color: var(--muted); font-size: 15px; }
+.counter-card { padding: 16px 18px; }
+.counter-row { display: flex; align-items: baseline; gap: 8px; margin: 4px 0 10px; }
+.counter-big { font-size: 42px; font-weight: 800; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; line-height: 1; color: var(--gold); }
+.counter-total { color: var(--muted); font-size: 14px; }
 .progress { height: 8px; border-radius: 999px; background: rgba(255,255,255,0.08); overflow: hidden; }
 .progress > div { height: 100%; width: 0; background: var(--grad); border-radius: inherit; transition: width .5s cubic-bezier(.2,.8,.2,1); }
-.stage-mode-switch { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+.stage-mode-switch { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
 
-.feed-card { padding: 18px 20px; flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
-.feed { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 9px; overflow: auto; }
+.feed-card { padding: 16px 18px; flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+.feed { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; overflow: auto; }
 .feed li { display: flex; align-items: center; gap: 10px; font-size: 13.5px; animation: slideIn .35s ease; }
 .feed .num { font-weight: 800; font-variant-numeric: tabular-nums; color: var(--gold); min-width: 44px; }
 .feed .who { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
@@ -538,29 +565,31 @@ body:not(.kiosk-locked) .top-actions { margin-left: 0; }
 .feed-empty { color: var(--muted); font-size: 13.5px; margin-top: 12px; }
 @keyframes slideIn { from { opacity: 0; transform: translateX(-8px); } to { opacity: 1; transform: none; } }
 
-.wheel-col { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; min-width: 0; }
+.wheel-col { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; min-width: 0; min-height: 0; }
 .prize-banner {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 9px 12px 9px 22px;
+  gap: 12px;
+  padding: 7px 10px 7px 18px;
   border-radius: 999px;
   background: rgba(0,0,0,0.28);
   border: 1px solid var(--line);
   max-width: 100%;
+  flex-shrink: 0;
 }
-.prize-banner .label { font-size: 11.5px; text-transform: uppercase; letter-spacing: .14em; color: var(--muted); white-space: nowrap; }
-.prize-banner .name { font-size: 21px; font-weight: 800; color: var(--gold); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.prize-banner .label { font-size: 11px; text-transform: uppercase; letter-spacing: .14em; color: var(--muted); white-space: nowrap; }
+.prize-banner .name { font-size: 19px; font-weight: 800; color: var(--gold); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .prize-nav { display: flex; gap: 4px; }
-.icon-btn { width: 38px; height: 38px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface); display: grid; place-items: center; }
+.icon-btn { width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface); display: grid; place-items: center; }
 .icon-btn:hover { background: var(--surface-strong); }
-.icon-btn svg { width: 18px; height: 18px; }
+.icon-btn svg { width: 16px; height: 16px; }
 
 .wheel-wrap {
   position: relative;
-  width: min(100%, calc(100vh - 220px), 740px);
-  min-width: 280px;
+  width: min(100%, calc(100vh - 235px), 680px);
+  min-width: 260px;
   aspect-ratio: 1;
+  flex-shrink: 0;
 }
 .wheel-glow {
   position: absolute;
@@ -615,27 +644,27 @@ body:not(.kiosk-locked) .top-actions { margin-left: 0; }
 .wheel-hub .hub-cta { font-size: clamp(11px, 1.3vw, 17px); font-weight: 800; letter-spacing: 0.22em; color: var(--gold); }
 .wheel-empty { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; z-index: 1; pointer-events: none; }
 .wheel-empty div { max-width: 55%; padding-top: 34%; color: var(--ink-soft); font-size: 14px; }
-.spin-hint { font-size: 12.5px; color: var(--muted); display: flex; gap: 8px; align-items: center; }
+.spin-hint { font-size: 12px; color: var(--muted); display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
 kbd { font-family: inherit; font-size: 11px; padding: 2px 7px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--ink-soft); }
 
-.prizes-card { padding: 18px 20px; flex: 1; display: flex; flex-direction: column; min-height: 0; }
-.prizes-head { display: flex; justify-content: space-between; align-items: baseline; }
-.prize-list { list-style: none; margin: 14px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; overflow: auto; }
+.prizes-card { padding: 14px 16px; flex: 1; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.prizes-head { display: flex; justify-content: space-between; align-items: baseline; flex-shrink: 0; }
+.prize-list { list-style: none; margin: 10px 0 0; padding: 0 4px 0 0; display: flex; flex-direction: column; gap: 6px; overflow: auto; flex: 1; min-height: 0; }
 .prize-item {
   display: grid;
-  grid-template-columns: 30px 1fr;
-  gap: 4px 12px;
+  grid-template-columns: 28px 1fr;
+  gap: 2px 10px;
   align-items: center;
-  padding: 10px 12px;
-  border-radius: 12px;
+  padding: 8px 10px;
+  border-radius: 11px;
   background: rgba(255,255,255,0.03);
   border: 1px solid transparent;
   cursor: pointer;
 }
 .prize-item:hover { background: rgba(255,255,255,0.06); }
-.prize-item .idx { grid-row: span 2; width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; font-size: 13px; font-weight: 700; background: rgba(255,255,255,0.08); color: var(--ink-soft); }
-.prize-item .pname { font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.prize-item .pwinner { font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.prize-item .idx { grid-row: span 2; width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; font-size: 12.5px; font-weight: 700; background: rgba(255,255,255,0.08); color: var(--ink-soft); }
+.prize-item .pname { font-weight: 600; font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.prize-item .pwinner { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .prize-item.current { background: rgba(255, 204, 110, 0.1); border-color: rgba(255, 204, 110, 0.38); }
 .prize-item.current .idx { background: var(--gold); color: #1E1041; }
 .prize-item.done .idx { background: var(--grad-short); color: #fff; }
@@ -724,7 +753,8 @@ tbody tr:hover { background: rgba(255,255,255,0.035); }
 td.num { font-weight: 800; color: var(--gold); font-variant-numeric: tabular-nums; width: 70px; }
 td.leg { color: var(--ink-soft); font-variant-numeric: tabular-nums; width: 120px; font-weight: 600; }
 td .nm { font-weight: 700; }
-td.act { text-align: right; width: 160px; }
+td.act { text-align: right; white-space: nowrap; width: 220px; }
+td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
 .empty-row td { text-align: center; color: var(--muted); padding: 40px; }
 
 .side { display: flex; flex-direction: column; gap: 16px; }
@@ -746,19 +776,41 @@ td.act { text-align: right; width: 160px; }
 .toast { background: #fff; color: #1E1041; font-weight: 700; font-size: 14px; padding: 10px 18px; border-radius: 999px; box-shadow: 0 16px 40px -12px rgba(0,0,0,0.6); animation: toastIn .3s ease; }
 @keyframes toastIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
 
-/* Responsive para pantallas 1366x768 de notebooks */
+/* Responsive para pantallas 1366x768 y 1280x720 de notebooks */
 @media (max-height: 820px) {
-  .kiosk-shell { padding: 14px 20px; gap: 16px; }
-  .kiosk-main { padding: 18px 22px; }
-  .input-xl { min-height: 52px; font-size: 20px; padding: 10px 15px; }
-  .numpad-grid button, .alpha-row button { min-height: 44px; font-size: 17px; }
-  .btn-xl { min-height: 50px; font-size: 16px; padding: 12px 22px; }
+  .topbar { padding: 9px 20px; }
+  .kiosk-shell { padding: 12px 18px; gap: 14px; }
+  .kiosk-main { padding: 14px 20px; }
+  .k-step { gap: 10px; }
+  .k-header h1 { font-size: 24px; }
+  .input-xl { min-height: 48px; font-size: 19px; padding: 10px 14px; }
+  .osk { padding: 10px 12px; }
+  .numpad-grid button, .alpha-row button { min-height: 40px; font-size: 16px; }
+  .osk-next-btn { min-height: 40px; }
+  .btn-xl { min-height: 48px; font-size: 15.5px; padding: 10px 20px; }
+  .stage { padding: 12px 18px; gap: 14px; }
+  .wheel-col { gap: 10px; }
+  .wheel-wrap { width: min(100%, calc(100vh - 225px), 640px); }
+  .prizes-card { padding: 12px 14px; }
+  .prize-list { gap: 4px; margin-top: 8px; }
+  .prize-item { padding: 5px 8px; gap: 1px 8px; }
+  .prize-item .idx { width: 24px; height: 24px; font-size: 11.5px; }
+  .prize-item .pname { font-size: 12.5px; }
+  .prize-item .pwinner { font-size: 11px; }
+}
+@media (max-width: 1340px) {
+  .topbar { gap: 10px; padding: 9px 14px; }
+  .tab { padding: 6px 10px; font-size: 12.5px; }
+  .top-actions .btn-sm { padding: 6px 10px; font-size: 12.5px; }
 }
 @media (max-width: 1100px) {
-  .kiosk-shell { grid-template-columns: 1fr; }
+  body { height: auto; min-height: 100vh; overflow: auto; }
+  main { overflow: visible; }
+  .view { height: auto; }
+  .kiosk-shell { grid-template-columns: 1fr; height: auto; }
   .k-fields { grid-template-columns: 1fr; }
   .k-ticket-wrap { grid-template-columns: 1fr; }
-  .stage { grid-template-columns: 1fr; height: auto; }
+  .stage { grid-template-columns: 1fr; height: auto; overflow: visible; }
   .admin { grid-template-columns: 1fr; }
   .stats { grid-template-columns: repeat(2, 1fr); }
 }
@@ -779,9 +831,6 @@ td.act { text-align: right; width: 160px; }
       <span class="pill pill-count" title="Personas inscriptas para la ruleta">
         <span class="dot"></span>
         <strong id="top-count">0</strong> inscriptos
-      </span>
-      <span class="pill pill-wake" id="wake-pill" title="La aplicación mantiene la pantalla de Windows encendida sin suspenderse">
-        ⚡ Pantalla siempre activa
       </span>
     </div>
 
@@ -846,7 +895,8 @@ td.act { text-align: right; width: 160px; }
                     class="input input-xl"
                     id="k-dni"
                     type="text"
-                    inputmode="numeric"
+                    inputmode="none"
+                    readonly
                     placeholder="Ej: 35123456"
                     maxlength="11"
                     autocomplete="off"
@@ -858,6 +908,8 @@ td.act { text-align: right; width: 160px; }
                     class="input input-xl"
                     id="k-nombre"
                     type="text"
+                    inputmode="none"
+                    readonly
                     placeholder="Ej: Sofía González"
                     maxlength="60"
                     autocomplete="off"
@@ -1163,7 +1215,7 @@ td.act { text-align: right; width: 160px; }
       <h2 id="auth-title">Ingresá la contraseña de Administrador</h2>
       <p class="help" id="auth-sub">Necesaria para pasar a la Ruleta, abrir el panel de control o salir a Windows.</p>
       <form id="auth-form" autocomplete="off">
-        <input class="input pin-input" id="auth-input" type="password" placeholder="••••" maxlength="20" autocomplete="off" />
+        <input class="input pin-input" id="auth-input" type="password" inputmode="none" readonly placeholder="••••" maxlength="20" autocomplete="off" />
         <div class="k-alert" id="auth-error"></div>
         <!-- Mini teclado numérico táctil para desbloquear sin teclado físico -->
         <div class="auth-numpad" id="auth-numpad">
@@ -1177,6 +1229,19 @@ td.act { text-align: right; width: 160px; }
           <button type="submit" class="btn btn-gold" id="auth-submit">Desbloquear</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- =================== MODAL DE CONFIRMACIÓN IN-APP =================== -->
+  <div class="overlay" id="confirm-overlay" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+    <div class="auth-card card">
+      <div class="eyebrow">Confirmar acción</div>
+      <h2 id="confirm-title">¿Confirmás esta acción?</h2>
+      <p class="help" id="confirm-msg" style="font-size:14px;color:var(--ink-soft);margin-top:8px;"></p>
+      <div class="auth-actions" style="margin-top:20px;">
+        <button type="button" class="btn btn-ghost" id="confirm-no">Cancelar</button>
+        <button type="button" class="btn btn-danger" id="confirm-yes">Sí, eliminar</button>
+      </div>
     </div>
   </div>
 
@@ -1331,8 +1396,6 @@ td.act { text-align: right; width: 160px; }
     if (!('wakeLock' in navigator)) return;
     try {
       wakeLock = await navigator.wakeLock.request('screen');
-      const pill = $('#wake-pill');
-      if (pill) pill.textContent = '⚡ Pantalla activa (Sin suspensión)';
       wakeLock.addEventListener('release', () => { wakeLock = null; });
     } catch (_) { /* ignore */ }
   }
@@ -1792,17 +1855,18 @@ td.act { text-align: right; width: 160px; }
 
     $('#table-count').textContent = `${rows.length} de ${pres.length}`;
     $('#emp-body').innerHTML = rows.length ? rows.map((e) => {
-      let status, action;
+      let status;
+      const acts = [];
       if (e.premio) {
         status = `<span class="chip chip-gold">🏆 Ganó · ${esc(e.premio)}</span>`;
-        action = '';
       } else if (e.ausente) {
         status = '<span class="chip chip-danger">Ausente al salir</span>';
-        action = `<button class="btn btn-ghost btn-sm" data-act="restore" data-dni="${e.dni}">Reincorporar</button>`;
+        acts.push(`<button class="btn btn-ghost btn-sm" data-act="restore" data-dni="${e.dni}">Reincorporar</button>`);
       } else {
         status = `<span class="chip chip-ok">En ruleta · ${fmtTime(e.checkin)}</span>`;
-        action = `<button class="btn btn-ghost btn-sm" data-act="delete" data-dni="${e.dni}">Eliminar</button>`;
       }
+      acts.push(`<button class="btn btn-danger btn-sm" data-act="delete" data-dni="${e.dni}">Eliminar</button>`);
+      const action = `<div class="row-acts">${acts.join('')}</div>`;
       return `<tr><td class="num">#${pad(e.numero)}</td><td class="leg">${formatDni(e.dni)}</td><td><div class="nm">${esc(e.nombre)}</div></td><td>${status}</td><td class="act">${action}</td></tr>`;
     }).join('') : '<tr class="empty-row"><td colspan="5">Todavía no hay personas inscriptas</td></tr>';
 
@@ -1916,11 +1980,35 @@ td.act { text-align: right; width: 160px; }
     }
   });
   $('#k-dni').addEventListener('focus', focusDniField);
+  $('#k-dni').addEventListener('click', focusDniField);
   $('#k-nombre').addEventListener('focus', focusNameField);
+  $('#k-nombre').addEventListener('click', focusNameField);
   $('#k-nombre').addEventListener('input', hideKioskError);
 
+  function applyOskMode(enabled) {
+    $('#osk').hidden = !enabled;
+    const dniInp = $('#k-dni');
+    const nameInp = $('#k-nombre');
+    if (enabled) {
+      dniInp.setAttribute('readonly', '');
+      nameInp.setAttribute('readonly', '');
+      dniInp.setAttribute('inputmode', 'none');
+      nameInp.setAttribute('inputmode', 'none');
+    } else {
+      dniInp.removeAttribute('readonly');
+      nameInp.removeAttribute('readonly');
+      dniInp.setAttribute('inputmode', 'numeric');
+      nameInp.setAttribute('inputmode', 'text');
+    }
+  }
+  applyOskMode($('#toggle-osk').checked);
+
+  $('#osk').addEventListener('mousedown', (e) => {
+    if (e.target.closest('button')) e.preventDefault();
+  });
+
   $('#toggle-osk').addEventListener('change', (e) => {
-    $('#osk').hidden = !e.target.checked;
+    applyOskMode(e.target.checked);
   });
   $('#osk-to-name').addEventListener('click', () => {
     focusNameField();
@@ -1929,6 +2017,58 @@ td.act { text-align: right; width: 160px; }
   $('#osk-to-dni').addEventListener('click', () => {
     focusDniField();
     $('#k-dni').focus();
+  });
+
+  // Soporte de teclado físico incluso cuando los campos están en readonly (para evitar el teclado táctil de Windows)
+  document.addEventListener('keydown', (e) => {
+    if (activeView() !== 'view-kiosco') return;
+    if (!$('#k-step-form').classList.contains('active')) return;
+    if ($('#auth-overlay').classList.contains('show')) return;
+    if ($('#confirm-overlay').classList.contains('show')) return;
+    if (!$('#toggle-osk').checked) return; // si OSK apagado, el input nativo maneja todo
+    if (e.ctrlKey || e.altKey || e.metaKey) return;
+
+    const dniFocused = $('#k-dni').classList.contains('focused');
+    const k = e.key;
+    if (k === 'Tab') {
+      e.preventDefault();
+      if (dniFocused) focusNameField();
+      else focusDniField();
+      return;
+    }
+    if (k === 'Enter') {
+      e.preventDefault();
+      if (dniFocused && !$('#k-nombre').value.trim()) {
+        focusNameField();
+      } else {
+        $('#k-form').requestSubmit();
+      }
+      return;
+    }
+    if (dniFocused) {
+      const inp = $('#k-dni');
+      if (/^[0-9]$/.test(k)) {
+        e.preventDefault();
+        if (inp.value.length < 10) { inp.value += k; inp.dispatchEvent(new Event('input')); }
+      } else if (k === 'Backspace') {
+        e.preventDefault();
+        inp.value = inp.value.slice(0, -1);
+        inp.dispatchEvent(new Event('input'));
+      }
+    } else {
+      const inp = $('#k-nombre');
+      if (k === 'Backspace') {
+        e.preventDefault();
+        inp.value = inp.value.slice(0, -1);
+        hideKioskError();
+      } else if (k.length === 1 && /^[a-zA-ZáéíóúüÁÉÍÓÚÜñÑ ]$/.test(k)) {
+        e.preventDefault();
+        if (inp.value.length < 55) {
+          inp.value = (inp.value + k).replace(/\s{2,}/g, ' ');
+          hideKioskError();
+        }
+      }
+    }
   });
 
   // Eventos del teclado numérico táctil
@@ -2029,11 +2169,46 @@ td.act { text-align: right; width: 160px; }
     authCallback = null;
   }
 
+  // Soporte de teclado físico también en el modal de contraseña (aunque tenga readonly para evitar teclado táctil de Windows)
+  document.addEventListener('keydown', (e) => {
+    if (!$('#auth-overlay').classList.contains('show')) return;
+    if (e.ctrlKey || e.altKey || e.metaKey) return;
+    const inp = $('#auth-input');
+    const k = e.key;
+    if (k === 'Escape') { e.preventDefault(); closeAuthModal(); return; }
+    if (k === 'Enter') { e.preventDefault(); $('#auth-form').requestSubmit(); return; }
+    if (k === 'Backspace') { e.preventDefault(); inp.value = inp.value.slice(0, -1); $('#auth-error').classList.remove('show'); return; }
+    if (k.length === 1 && inp.value.length < 20) {
+      e.preventDefault();
+      inp.value += k;
+      $('#auth-error').classList.remove('show');
+    }
+  });
+
+  /* ---------------- Modal in-app de confirmación ---------------- */
+  let confirmCallback = null;
+  function openConfirmModal(title, msg, yesLabel, onConfirm) {
+    confirmCallback = onConfirm;
+    $('#confirm-title').textContent = title;
+    $('#confirm-msg').textContent = msg;
+    $('#confirm-yes').textContent = yesLabel || 'Confirmar';
+    $('#confirm-overlay').classList.add('show');
+  }
+  function closeConfirmModal() {
+    $('#confirm-overlay').classList.remove('show');
+    confirmCallback = null;
+  }
+  $('#confirm-no').addEventListener('click', closeConfirmModal);
+  $('#confirm-yes').addEventListener('click', () => {
+    const cb = confirmCallback;
+    closeConfirmModal();
+    if (cb) cb();
+  });
+
   function setKioskLocked(locked) {
     kioskLocked = locked;
     document.body.classList.toggle('kiosk-locked', locked);
     if (locked) {
-      // En modo bloqueado nos aseguramos de estar en pantalla completa si el navegador lo permite
       if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
         document.documentElement.requestFullscreen().catch(() => {});
       }
@@ -2048,7 +2223,6 @@ td.act { text-align: right; width: 160px; }
   });
 
   $('#btn-lock-now').addEventListener('click', () => {
-    // Si estaba en Admin, al bloquear vuelve a Inscripción (o deja en Ruleta si estaba en Ruleta)
     if (activeView() === 'view-admin') setView('kiosco');
     setKioskLocked(true);
     toast('🔒 Pantalla bloqueada en modo Kiosco');
@@ -2084,6 +2258,9 @@ td.act { text-align: right; width: 160px; }
     toast('🖥️ Ventana HDMI abierta · arrastrala al proyector y presioná F11');
   });
 
+  $('#auth-numpad').addEventListener('mousedown', (e) => {
+    if (e.target.closest('button')) e.preventDefault();
+  });
   $('#auth-numpad').addEventListener('click', (e) => {
     const b = e.target.closest('button[data-akey]');
     if (!b) return;
@@ -2118,6 +2295,7 @@ td.act { text-align: right; width: 160px; }
     if (!['kiosco', 'pantalla', 'admin'].includes(name)) name = 'kiosco';
     $$('.tab').forEach((t) => t.setAttribute('aria-selected', String(t.dataset.view === name)));
     $$('.view').forEach((v) => v.classList.toggle('active', v.id === `view-${name}`));
+    document.body.classList.toggle('in-admin', name === 'admin');
     if (location.hash !== `#${name}`) history.replaceState(null, '', `#${name}`);
     if (name === 'pantalla') requestAnimationFrame(sizeWheel);
   }
@@ -2185,10 +2363,22 @@ td.act { text-align: right; width: 160px; }
     if (idx < 0) return;
     const emp = state.employees[idx];
     if (b.dataset.act === 'delete') {
-      if (!confirm(`¿Eliminar la inscripción de ${emp.nombre} (DNI ${formatDni(emp.dni)})?`)) return;
-      state.employees.splice(idx, 1);
-      save();
-      toast('Inscripción eliminada');
+      const extra = emp.premio ? ` También se liberará el premio «${emp.premio}» para volver a sortearlo.` : '';
+      openConfirmModal(
+        '¿Eliminar participante?',
+        `Vas a eliminar a ${emp.nombre} (DNI ${formatDni(emp.dni)}).${extra}`,
+        'Sí, eliminar',
+        () => {
+          state.prizes.forEach((p) => {
+            if (p.ganador && cleanDni(p.ganador.dni) === cleanDni(emp.dni)) {
+              p.ganador = null;
+            }
+          });
+          state.employees.splice(idx, 1);
+          save();
+          toast(`🗑️ ${emp.nombre} eliminado`);
+        }
+      );
     } else if (b.dataset.act === 'restore') {
       emp.ausente = false;
       save();
@@ -2264,13 +2454,19 @@ td.act { text-align: right; width: 160px; }
   });
 
   $('#reset-btn').addEventListener('click', () => {
-    if (!confirm('¿Borrar todos los inscriptos y ganadores para empezar de cero?')) return;
-    const keepPass = state.config.adminPass;
-    state = defaultState();
-    state.config.adminPass = keepPass;
-    wheel.rotation = 0;
-    save();
-    toast('Datos reiniciados a cero');
+    openConfirmModal(
+      '¿Borrar todo y empezar de cero?',
+      'Se eliminarán todos los participantes inscriptos y se reiniciarán los premios entregados.',
+      'Sí, borrar todo',
+      () => {
+        const keepPass = state.config.adminPass;
+        state = defaultState();
+        state.config.adminPass = keepPass;
+        wheel.rotation = 0;
+        save();
+        toast('Datos reiniciados a cero');
+      }
+    );
   });
 
   $('#export-csv').addEventListener('click', () => {

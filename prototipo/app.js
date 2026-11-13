@@ -146,8 +146,6 @@
     if (!('wakeLock' in navigator)) return;
     try {
       wakeLock = await navigator.wakeLock.request('screen');
-      const pill = $('#wake-pill');
-      if (pill) pill.textContent = '⚡ Pantalla activa (Sin suspensión)';
       wakeLock.addEventListener('release', () => { wakeLock = null; });
     } catch (_) { /* ignore */ }
   }
@@ -607,17 +605,18 @@
 
     $('#table-count').textContent = `${rows.length} de ${pres.length}`;
     $('#emp-body').innerHTML = rows.length ? rows.map((e) => {
-      let status, action;
+      let status;
+      const acts = [];
       if (e.premio) {
         status = `<span class="chip chip-gold">🏆 Ganó · ${esc(e.premio)}</span>`;
-        action = '';
       } else if (e.ausente) {
         status = '<span class="chip chip-danger">Ausente al salir</span>';
-        action = `<button class="btn btn-ghost btn-sm" data-act="restore" data-dni="${e.dni}">Reincorporar</button>`;
+        acts.push(`<button class="btn btn-ghost btn-sm" data-act="restore" data-dni="${e.dni}">Reincorporar</button>`);
       } else {
         status = `<span class="chip chip-ok">En ruleta · ${fmtTime(e.checkin)}</span>`;
-        action = `<button class="btn btn-ghost btn-sm" data-act="delete" data-dni="${e.dni}">Eliminar</button>`;
       }
+      acts.push(`<button class="btn btn-danger btn-sm" data-act="delete" data-dni="${e.dni}">Eliminar</button>`);
+      const action = `<div class="row-acts">${acts.join('')}</div>`;
       return `<tr><td class="num">#${pad(e.numero)}</td><td class="leg">${formatDni(e.dni)}</td><td><div class="nm">${esc(e.nombre)}</div></td><td>${status}</td><td class="act">${action}</td></tr>`;
     }).join('') : '<tr class="empty-row"><td colspan="5">Todavía no hay personas inscriptas</td></tr>';
 
@@ -731,11 +730,35 @@
     }
   });
   $('#k-dni').addEventListener('focus', focusDniField);
+  $('#k-dni').addEventListener('click', focusDniField);
   $('#k-nombre').addEventListener('focus', focusNameField);
+  $('#k-nombre').addEventListener('click', focusNameField);
   $('#k-nombre').addEventListener('input', hideKioskError);
 
+  function applyOskMode(enabled) {
+    $('#osk').hidden = !enabled;
+    const dniInp = $('#k-dni');
+    const nameInp = $('#k-nombre');
+    if (enabled) {
+      dniInp.setAttribute('readonly', '');
+      nameInp.setAttribute('readonly', '');
+      dniInp.setAttribute('inputmode', 'none');
+      nameInp.setAttribute('inputmode', 'none');
+    } else {
+      dniInp.removeAttribute('readonly');
+      nameInp.removeAttribute('readonly');
+      dniInp.setAttribute('inputmode', 'numeric');
+      nameInp.setAttribute('inputmode', 'text');
+    }
+  }
+  applyOskMode($('#toggle-osk').checked);
+
+  $('#osk').addEventListener('mousedown', (e) => {
+    if (e.target.closest('button')) e.preventDefault();
+  });
+
   $('#toggle-osk').addEventListener('change', (e) => {
-    $('#osk').hidden = !e.target.checked;
+    applyOskMode(e.target.checked);
   });
   $('#osk-to-name').addEventListener('click', () => {
     focusNameField();
@@ -744,6 +767,58 @@
   $('#osk-to-dni').addEventListener('click', () => {
     focusDniField();
     $('#k-dni').focus();
+  });
+
+  // Soporte de teclado físico incluso cuando los campos están en readonly (para evitar el teclado táctil de Windows)
+  document.addEventListener('keydown', (e) => {
+    if (activeView() !== 'view-kiosco') return;
+    if (!$('#k-step-form').classList.contains('active')) return;
+    if ($('#auth-overlay').classList.contains('show')) return;
+    if ($('#confirm-overlay').classList.contains('show')) return;
+    if (!$('#toggle-osk').checked) return; // si OSK apagado, el input nativo maneja todo
+    if (e.ctrlKey || e.altKey || e.metaKey) return;
+
+    const dniFocused = $('#k-dni').classList.contains('focused');
+    const k = e.key;
+    if (k === 'Tab') {
+      e.preventDefault();
+      if (dniFocused) focusNameField();
+      else focusDniField();
+      return;
+    }
+    if (k === 'Enter') {
+      e.preventDefault();
+      if (dniFocused && !$('#k-nombre').value.trim()) {
+        focusNameField();
+      } else {
+        $('#k-form').requestSubmit();
+      }
+      return;
+    }
+    if (dniFocused) {
+      const inp = $('#k-dni');
+      if (/^[0-9]$/.test(k)) {
+        e.preventDefault();
+        if (inp.value.length < 10) { inp.value += k; inp.dispatchEvent(new Event('input')); }
+      } else if (k === 'Backspace') {
+        e.preventDefault();
+        inp.value = inp.value.slice(0, -1);
+        inp.dispatchEvent(new Event('input'));
+      }
+    } else {
+      const inp = $('#k-nombre');
+      if (k === 'Backspace') {
+        e.preventDefault();
+        inp.value = inp.value.slice(0, -1);
+        hideKioskError();
+      } else if (k.length === 1 && /^[a-zA-ZáéíóúüÁÉÍÓÚÜñÑ ]$/.test(k)) {
+        e.preventDefault();
+        if (inp.value.length < 55) {
+          inp.value = (inp.value + k).replace(/\s{2,}/g, ' ');
+          hideKioskError();
+        }
+      }
+    }
   });
 
   // Eventos del teclado numérico táctil
@@ -844,11 +919,46 @@
     authCallback = null;
   }
 
+  // Soporte de teclado físico también en el modal de contraseña (aunque tenga readonly para evitar teclado táctil de Windows)
+  document.addEventListener('keydown', (e) => {
+    if (!$('#auth-overlay').classList.contains('show')) return;
+    if (e.ctrlKey || e.altKey || e.metaKey) return;
+    const inp = $('#auth-input');
+    const k = e.key;
+    if (k === 'Escape') { e.preventDefault(); closeAuthModal(); return; }
+    if (k === 'Enter') { e.preventDefault(); $('#auth-form').requestSubmit(); return; }
+    if (k === 'Backspace') { e.preventDefault(); inp.value = inp.value.slice(0, -1); $('#auth-error').classList.remove('show'); return; }
+    if (k.length === 1 && inp.value.length < 20) {
+      e.preventDefault();
+      inp.value += k;
+      $('#auth-error').classList.remove('show');
+    }
+  });
+
+  /* ---------------- Modal in-app de confirmación ---------------- */
+  let confirmCallback = null;
+  function openConfirmModal(title, msg, yesLabel, onConfirm) {
+    confirmCallback = onConfirm;
+    $('#confirm-title').textContent = title;
+    $('#confirm-msg').textContent = msg;
+    $('#confirm-yes').textContent = yesLabel || 'Confirmar';
+    $('#confirm-overlay').classList.add('show');
+  }
+  function closeConfirmModal() {
+    $('#confirm-overlay').classList.remove('show');
+    confirmCallback = null;
+  }
+  $('#confirm-no').addEventListener('click', closeConfirmModal);
+  $('#confirm-yes').addEventListener('click', () => {
+    const cb = confirmCallback;
+    closeConfirmModal();
+    if (cb) cb();
+  });
+
   function setKioskLocked(locked) {
     kioskLocked = locked;
     document.body.classList.toggle('kiosk-locked', locked);
     if (locked) {
-      // En modo bloqueado nos aseguramos de estar en pantalla completa si el navegador lo permite
       if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
         document.documentElement.requestFullscreen().catch(() => {});
       }
@@ -863,7 +973,6 @@
   });
 
   $('#btn-lock-now').addEventListener('click', () => {
-    // Si estaba en Admin, al bloquear vuelve a Inscripción (o deja en Ruleta si estaba en Ruleta)
     if (activeView() === 'view-admin') setView('kiosco');
     setKioskLocked(true);
     toast('🔒 Pantalla bloqueada en modo Kiosco');
@@ -899,6 +1008,9 @@
     toast('🖥️ Ventana HDMI abierta · arrastrala al proyector y presioná F11');
   });
 
+  $('#auth-numpad').addEventListener('mousedown', (e) => {
+    if (e.target.closest('button')) e.preventDefault();
+  });
   $('#auth-numpad').addEventListener('click', (e) => {
     const b = e.target.closest('button[data-akey]');
     if (!b) return;
@@ -933,6 +1045,7 @@
     if (!['kiosco', 'pantalla', 'admin'].includes(name)) name = 'kiosco';
     $$('.tab').forEach((t) => t.setAttribute('aria-selected', String(t.dataset.view === name)));
     $$('.view').forEach((v) => v.classList.toggle('active', v.id === `view-${name}`));
+    document.body.classList.toggle('in-admin', name === 'admin');
     if (location.hash !== `#${name}`) history.replaceState(null, '', `#${name}`);
     if (name === 'pantalla') requestAnimationFrame(sizeWheel);
   }
@@ -1000,10 +1113,22 @@
     if (idx < 0) return;
     const emp = state.employees[idx];
     if (b.dataset.act === 'delete') {
-      if (!confirm(`¿Eliminar la inscripción de ${emp.nombre} (DNI ${formatDni(emp.dni)})?`)) return;
-      state.employees.splice(idx, 1);
-      save();
-      toast('Inscripción eliminada');
+      const extra = emp.premio ? ` También se liberará el premio «${emp.premio}» para volver a sortearlo.` : '';
+      openConfirmModal(
+        '¿Eliminar participante?',
+        `Vas a eliminar a ${emp.nombre} (DNI ${formatDni(emp.dni)}).${extra}`,
+        'Sí, eliminar',
+        () => {
+          state.prizes.forEach((p) => {
+            if (p.ganador && cleanDni(p.ganador.dni) === cleanDni(emp.dni)) {
+              p.ganador = null;
+            }
+          });
+          state.employees.splice(idx, 1);
+          save();
+          toast(`🗑️ ${emp.nombre} eliminado`);
+        }
+      );
     } else if (b.dataset.act === 'restore') {
       emp.ausente = false;
       save();
@@ -1079,13 +1204,19 @@
   });
 
   $('#reset-btn').addEventListener('click', () => {
-    if (!confirm('¿Borrar todos los inscriptos y ganadores para empezar de cero?')) return;
-    const keepPass = state.config.adminPass;
-    state = defaultState();
-    state.config.adminPass = keepPass;
-    wheel.rotation = 0;
-    save();
-    toast('Datos reiniciados a cero');
+    openConfirmModal(
+      '¿Borrar todo y empezar de cero?',
+      'Se eliminarán todos los participantes inscriptos y se reiniciarán los premios entregados.',
+      'Sí, borrar todo',
+      () => {
+        const keepPass = state.config.adminPass;
+        state = defaultState();
+        state.config.adminPass = keepPass;
+        wheel.rotation = 0;
+        save();
+        toast('Datos reiniciados a cero');
+      }
+    );
   });
 
   $('#export-csv').addEventListener('click', () => {

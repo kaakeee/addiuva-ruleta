@@ -23,9 +23,6 @@
         <span class="dot"></span>
         <strong id="top-count">0</strong> inscriptos
       </span>
-      <span class="pill pill-wake" id="wake-pill" title="La aplicación mantiene la pantalla de Windows encendida sin suspenderse">
-        ⚡ Pantalla siempre activa
-      </span>
     </div>
 
     <!-- Navegación (visible cuando el Admin desbloquea con contraseña) -->
@@ -89,7 +86,8 @@
                     class="input input-xl"
                     id="k-dni"
                     type="text"
-                    inputmode="numeric"
+                    inputmode="none"
+                    readonly
                     placeholder="Ej: 35123456"
                     maxlength="11"
                     autocomplete="off"
@@ -101,6 +99,8 @@
                     class="input input-xl"
                     id="k-nombre"
                     type="text"
+                    inputmode="none"
+                    readonly
                     placeholder="Ej: Sofía González"
                     maxlength="60"
                     autocomplete="off"
@@ -406,7 +406,7 @@
       <h2 id="auth-title">Ingresá la contraseña de Administrador</h2>
       <p class="help" id="auth-sub">Necesaria para pasar a la Ruleta, abrir el panel de control o salir a Windows.</p>
       <form id="auth-form" autocomplete="off">
-        <input class="input pin-input" id="auth-input" type="password" placeholder="••••" maxlength="20" autocomplete="off" />
+        <input class="input pin-input" id="auth-input" type="password" inputmode="none" readonly placeholder="••••" maxlength="20" autocomplete="off" />
         <div class="k-alert" id="auth-error"></div>
         <!-- Mini teclado numérico táctil para desbloquear sin teclado físico -->
         <div class="auth-numpad" id="auth-numpad">
@@ -420,6 +420,19 @@
           <button type="submit" class="btn btn-gold" id="auth-submit">Desbloquear</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- =================== MODAL DE CONFIRMACIÓN IN-APP =================== -->
+  <div class="overlay" id="confirm-overlay" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+    <div class="auth-card card">
+      <div class="eyebrow">Confirmar acción</div>
+      <h2 id="confirm-title">¿Confirmás esta acción?</h2>
+      <p class="help" id="confirm-msg" style="font-size:14px;color:var(--ink-soft);margin-top:8px;"></p>
+      <div class="auth-actions" style="margin-top:20px;">
+        <button type="button" class="btn btn-ghost" id="confirm-no">Cancelar</button>
+        <button type="button" class="btn btn-danger" id="confirm-yes">Sí, eliminar</button>
+      </div>
     </div>
   </div>
 
