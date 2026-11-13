@@ -67,15 +67,24 @@
           <!-- PASO 1: Formulario DNI + Nombre Completo -->
           <div class="k-step active" id="k-step-form">
             <div class="k-header">
-              <div>
+              <div class="k-title-wrap">
                 <div class="eyebrow">Bienvenidos a la fiesta de fin de año</div>
                 <h1>Inscribite para el Sorteo 🎉</h1>
                 <p class="k-sub">Ingresá tu <strong>DNI</strong> y tu <strong>Nombre y Apellido completo</strong> para obtener tu número en la ruleta.</p>
               </div>
-              <label class="touch-kb-toggle" title="Mostrar u ocultar el teclado táctil en pantalla">
-                <input type="checkbox" id="toggle-osk" checked />
-                <span>⌨️ Teclado en pantalla</span>
-              </label>
+              <div class="k-header-right">
+                <div class="k-mini-counter" title="Total de personas inscriptas para la ruleta">
+                  <div class="k-mini-top">
+                    <span class="eyebrow">Participantes inscriptos</span>
+                    <span class="k-mini-val"><strong id="k-count-present">0</strong> <small>en la ruleta</small></span>
+                  </div>
+                  <div class="progress k-mini-progress"><div id="k-count-bar"></div></div>
+                </div>
+                <label class="touch-kb-toggle" title="Mostrar u ocultar el teclado táctil en pantalla">
+                  <input type="checkbox" id="toggle-osk" checked />
+                  <span>⌨️ Teclado en pantalla</span>
+                </label>
+              </div>
             </div>
 
             <form id="k-form" class="k-form" autocomplete="off" novalidate>
@@ -213,25 +222,6 @@
             </div>
           </div>
         </div>
-
-        <!-- Columna lateral en Kiosco: contador y últimas inscripciones -->
-        <aside class="kiosk-side">
-          <div class="card counter-card">
-            <div class="eyebrow">Participantes inscriptos</div>
-            <div class="counter-row">
-              <span class="counter-big" id="k-count-present">0</span>
-              <span class="counter-total">en la ruleta</span>
-            </div>
-            <div class="progress"><div id="k-count-bar"></div></div>
-            <p class="help" style="margin-top:10px">Cada persona queda registrada con su DNI y Nombre únicos.</p>
-          </div>
-
-          <div class="card feed-card">
-            <div class="eyebrow">Últimos inscriptos</div>
-            <ul class="feed" id="k-feed"></ul>
-            <div class="feed-empty" id="k-feed-empty">Aún no hay inscriptos. ¡Sé la primera persona en anotarte!</div>
-          </div>
-        </aside>
       </div>
     </section>
 

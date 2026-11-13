@@ -816,11 +816,6 @@
     $('#k-count-present').textContent = pres.length;
     const goal = Math.max(100, pres.length);
     $('#k-count-bar').style.width = `${Math.min(100, (pres.length / goal) * 100)}%`;
-
-    const recent = pres.slice().sort((a, b) => b.checkin.localeCompare(a.checkin)).slice(0, 8);
-    $('#k-feed').innerHTML = recent.map((e) =>
-      `<li><span class="num">#${pad(e.numero)}</span><span class="who">${esc(e.nombre)}</span><time>${fmtTime(e.checkin)}</time></li>`).join('');
-    $('#k-feed-empty').hidden = recent.length > 0;
   }
 
   function renderPantalla() {
