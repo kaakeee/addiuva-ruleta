@@ -288,6 +288,10 @@ body:not(.kiosk-locked) .top-actions { margin-left: 0; }
   outline: none;
   transition: border-color .2s, background .2s, box-shadow .2s;
 }
+.input[readonly] {
+  caret-color: transparent;
+  cursor: pointer;
+}
 .input-xl {
   min-height: 62px;
   font-size: 23px;
@@ -329,19 +333,25 @@ body:not(.kiosk-locked) .top-actions { margin-left: 0; }
 .switch small { display: block; color: var(--muted); font-size: 12px; }
 
 /* ---------- VISTA 1: KIOSCO DE INSCRIPCIÓN ---------- */
+#view-kiosco.active {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 .kiosk-shell {
+  width: 100%;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 310px;
-  gap: 18px;
-  padding: 16px 22px;
-  height: 100%;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 20px;
+  padding: 18px 24px;
+  max-height: 100%;
   min-height: 0;
-  max-width: 1480px;
-  margin: 0 auto;
+  max-width: 1320px;
+  margin: auto;
   align-items: stretch;
 }
 .kiosk-main {
-  padding: 20px 24px;
+  padding: 28px 32px;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -355,7 +365,7 @@ body:not(.kiosk-locked) .top-actions { margin-left: 0; }
   min-height: 0;
 }
 
-.k-step { display: none; flex-direction: column; gap: 14px; }
+.k-step { display: none; flex-direction: column; gap: 16px; }
 .k-step.active { display: flex; animation: fadeIn .25s ease; }
 
 .k-header {
@@ -365,8 +375,9 @@ body:not(.kiosk-locked) .top-actions { margin-left: 0; }
   gap: 14px;
   flex-wrap: wrap;
 }
-.k-header h1 { font-size: clamp(22px, 2.4vw, 32px); margin-top: 2px; }
-.k-sub { color: var(--ink-soft); font-size: 14.5px; margin-top: 3px; }
+.k-header > div { flex: 1; min-width: 240px; }
+.k-header h1 { font-size: clamp(24px, 2.3vw, 34px); margin-top: 2px; }
+.k-sub { color: var(--ink-soft); font-size: 15px; margin-top: 4px; }
 
 .touch-kb-toggle {
   display: inline-flex;
@@ -379,12 +390,21 @@ body:not(.kiosk-locked) .top-actions { margin-left: 0; }
   font-size: 12.5px;
   font-weight: 600;
   cursor: pointer;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 .touch-kb-toggle input { accent-color: var(--gold); width: 15px; height: 15px; }
 
 .k-fields {
   display: grid;
-  grid-template-columns: 260px minmax(0, 1fr);
+  grid-template-columns: clamp(275px, 34%, 340px) minmax(0, 1fr);
+  gap: 14px;
+  align-items: end;
+}
+.k-fields .field label { white-space: nowrap; }
+.k-form {
+  display: flex;
+  flex-direction: column;
   gap: 14px;
 }
 .k-actions {
@@ -411,8 +431,8 @@ body:not(.kiosk-locked) .top-actions { margin-left: 0; }
 /* Teclado táctil en pantalla (OSK) */
 .osk {
   margin-top: 2px;
-  padding: 12px 14px;
-  border-radius: 16px;
+  padding: 14px 16px;
+  border-radius: 18px;
   background: rgba(10, 4, 24, 0.55);
   border: 1px solid var(--line);
 }
@@ -420,9 +440,9 @@ body:not(.kiosk-locked) .top-actions { margin-left: 0; }
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 12px;
+  font-size: 12.5px;
   color: var(--muted);
-  margin-bottom: 8px;
+  margin-bottom: 10px;
 }
 .osk-caption strong { color: var(--gold); }
 .link-btn {
@@ -434,11 +454,32 @@ body:not(.kiosk-locked) .top-actions { margin-left: 0; }
   padding: 3px 8px;
 }
 
-.osk-num { max-width: 480px; margin: 0 auto; }
+.osk-num { width: 100%; }
+.osk-num-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(210px, 0.9fr);
+  gap: 14px;
+  align-items: stretch;
+}
 .numpad-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 7px;
+  gap: 8px;
+}
+.osk-num-side {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.osk-tip {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ink-soft);
 }
 .numpad-grid button,
 .alpha-row button,
@@ -449,7 +490,7 @@ body:not(.kiosk-locked) .top-actions { margin-left: 0; }
   border-radius: 11px;
   font-size: 20px;
   font-weight: 700;
-  min-height: 46px;
+  min-height: 50px;
   transition: background .1s, transform .08s;
 }
 .numpad-grid button:active,
@@ -459,11 +500,21 @@ body:not(.kiosk-locked) .top-actions { margin-left: 0; }
   color: #1E1041;
   transform: scale(0.95);
 }
-.osk-next-btn { width: 100%; margin-top: 8px; min-height: 44px; }
+.osk-next-btn {
+  width: 100%;
+  flex: 1;
+  min-height: 64px;
+  flex-direction: column;
+  gap: 2px;
+  text-align: center;
+  padding: 12px 14px;
+}
+.osk-next-btn span { font-size: 12.5px; opacity: 0.9; font-weight: 600; }
+.osk-next-btn strong { font-size: 16px; }
 
 .alpha-rows { display: flex; flex-direction: column; gap: 7px; }
 .alpha-row { display: flex; gap: 6px; justify-content: center; }
-.alpha-row button { flex: 1; min-width: 0; min-height: 46px; font-size: 18px; }
+.alpha-row button { flex: 1; min-width: 0; min-height: 50px; font-size: 18px; }
 .alpha-row .key-wide { flex: 1.7; font-size: 14px; }
 .alpha-row .key-space { flex: 3.5; font-size: 14px; letter-spacing: 0.12em; }
 .alpha-row .key-ok {
@@ -786,14 +837,15 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
 /* Responsive para pantallas 1366x768 y 1280x720 de notebooks */
 @media (max-height: 820px) {
   .topbar { padding: 9px 20px; }
-  .kiosk-shell { padding: 12px 18px; gap: 14px; }
+  .kiosk-shell { padding: 12px 18px; gap: 14px; height: 100%; }
   .kiosk-main { padding: 14px 20px; }
   .k-step { gap: 10px; }
+  .k-form { gap: 10px; }
   .k-header h1 { font-size: 24px; }
   .input-xl { min-height: 48px; font-size: 19px; padding: 10px 14px; }
   .osk { padding: 10px 12px; }
   .numpad-grid button, .alpha-row button { min-height: 40px; font-size: 16px; }
-  .osk-next-btn { min-height: 40px; }
+  .osk-next-btn { min-height: 52px; }
   .btn-xl { min-height: 48px; font-size: 15.5px; padding: 10px 20px; }
   .stage { padding: 10px 16px; gap: 14px; }
   .wheel-col { gap: 14px; }
@@ -806,14 +858,13 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
   .prize-item .pwinner { font-size: 11px; }
 }
 @media (min-height: 950px) {
-  .kiosk-main { padding: 32px 42px; }
+  .kiosk-main { padding: 34px 40px; }
   .k-step { gap: 18px; }
   .k-header h1 { font-size: 36px; }
   .k-sub { font-size: 16px; }
   .osk { padding: 16px 18px; }
-  .osk-num { max-width: 560px; }
   .numpad-grid button, .alpha-row button { min-height: 58px; font-size: 22px; }
-  .osk-next-btn { min-height: 52px; font-size: 16px; margin-top: 10px; }
+  .osk-next-btn strong { font-size: 18px; }
 }
 /* TV o proyector 4K */
 @media (min-width: 2400px) and (min-height: 1300px) {
@@ -833,6 +884,7 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
   .view { height: auto; }
   .kiosk-shell { grid-template-columns: 1fr; height: auto; }
   .k-fields { grid-template-columns: 1fr; }
+  .osk-num-body { grid-template-columns: 1fr; }
   .k-ticket-wrap { grid-template-columns: 1fr; }
   .stage { grid-template-columns: 1fr; height: auto; overflow: visible; }
   .admin { grid-template-columns: 1fr; }
@@ -914,7 +966,7 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
             <form id="k-form" class="k-form" autocomplete="off" novalidate>
               <div class="k-fields">
                 <div class="field k-field-dni">
-                  <label for="k-dni">1. Número de DNI / Documento <span class="req">(sin puntos)</span></label>
+                  <label for="k-dni">1. DNI / Documento <span class="req">(sin puntos)</span></label>
                   <input
                     class="input input-xl"
                     id="k-dni"
@@ -955,24 +1007,30 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
             <div class="osk" id="osk" aria-label="Teclado táctil en pantalla">
               <!-- Teclado numérico (cuando el foco está en DNI) -->
               <div class="osk-pad osk-num" id="osk-num">
-                <div class="osk-caption">Teclado numérico · Ingresando <strong>DNI</strong></div>
-                <div class="numpad-grid">
-                  <button type="button" data-key="1">1</button>
-                  <button type="button" data-key="2">2</button>
-                  <button type="button" data-key="3">3</button>
-                  <button type="button" data-key="4">4</button>
-                  <button type="button" data-key="5">5</button>
-                  <button type="button" data-key="6">6</button>
-                  <button type="button" data-key="7">7</button>
-                  <button type="button" data-key="8">8</button>
-                  <button type="button" data-key="9">9</button>
-                  <button type="button" class="key-fn" data-key="CLEAR">Vaciar</button>
-                  <button type="button" data-key="0">0</button>
-                  <button type="button" class="key-fn" data-key="BACK">⌫ Borrar</button>
+                <div class="osk-caption"><span>Teclado numérico · Ingresando <strong>DNI</strong></span></div>
+                <div class="osk-num-body">
+                  <div class="numpad-grid">
+                    <button type="button" data-key="1">1</button>
+                    <button type="button" data-key="2">2</button>
+                    <button type="button" data-key="3">3</button>
+                    <button type="button" data-key="4">4</button>
+                    <button type="button" data-key="5">5</button>
+                    <button type="button" data-key="6">6</button>
+                    <button type="button" data-key="7">7</button>
+                    <button type="button" data-key="8">8</button>
+                    <button type="button" data-key="9">9</button>
+                    <button type="button" class="key-fn" data-key="CLEAR">Vaciar</button>
+                    <button type="button" data-key="0">0</button>
+                    <button type="button" class="key-fn" data-key="BACK">⌫ Borrar</button>
+                  </div>
+                  <div class="osk-num-side">
+                    <p class="osk-tip">Ingresá tu documento solo con números (sin puntos ni espacios) y pasá al nombre.</p>
+                    <button type="button" class="btn btn-primary osk-next-btn" id="osk-to-name">
+                      <span>Siguiente:</span>
+                      <strong>Escribir Nombre →</strong>
+                    </button>
+                  </div>
                 </div>
-                <button type="button" class="btn btn-primary osk-next-btn" id="osk-to-name">
-                  Siguiente: Escribir Nombre y Apellido →
-                </button>
               </div>
 
               <!-- Teclado QWERTY Español (cuando el foco está en Nombre) -->

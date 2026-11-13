@@ -81,7 +81,7 @@
             <form id="k-form" class="k-form" autocomplete="off" novalidate>
               <div class="k-fields">
                 <div class="field k-field-dni">
-                  <label for="k-dni">1. Número de DNI / Documento <span class="req">(sin puntos)</span></label>
+                  <label for="k-dni">1. DNI / Documento <span class="req">(sin puntos)</span></label>
                   <input
                     class="input input-xl"
                     id="k-dni"
@@ -122,24 +122,30 @@
             <div class="osk" id="osk" aria-label="Teclado táctil en pantalla">
               <!-- Teclado numérico (cuando el foco está en DNI) -->
               <div class="osk-pad osk-num" id="osk-num">
-                <div class="osk-caption">Teclado numérico · Ingresando <strong>DNI</strong></div>
-                <div class="numpad-grid">
-                  <button type="button" data-key="1">1</button>
-                  <button type="button" data-key="2">2</button>
-                  <button type="button" data-key="3">3</button>
-                  <button type="button" data-key="4">4</button>
-                  <button type="button" data-key="5">5</button>
-                  <button type="button" data-key="6">6</button>
-                  <button type="button" data-key="7">7</button>
-                  <button type="button" data-key="8">8</button>
-                  <button type="button" data-key="9">9</button>
-                  <button type="button" class="key-fn" data-key="CLEAR">Vaciar</button>
-                  <button type="button" data-key="0">0</button>
-                  <button type="button" class="key-fn" data-key="BACK">⌫ Borrar</button>
+                <div class="osk-caption"><span>Teclado numérico · Ingresando <strong>DNI</strong></span></div>
+                <div class="osk-num-body">
+                  <div class="numpad-grid">
+                    <button type="button" data-key="1">1</button>
+                    <button type="button" data-key="2">2</button>
+                    <button type="button" data-key="3">3</button>
+                    <button type="button" data-key="4">4</button>
+                    <button type="button" data-key="5">5</button>
+                    <button type="button" data-key="6">6</button>
+                    <button type="button" data-key="7">7</button>
+                    <button type="button" data-key="8">8</button>
+                    <button type="button" data-key="9">9</button>
+                    <button type="button" class="key-fn" data-key="CLEAR">Vaciar</button>
+                    <button type="button" data-key="0">0</button>
+                    <button type="button" class="key-fn" data-key="BACK">⌫ Borrar</button>
+                  </div>
+                  <div class="osk-num-side">
+                    <p class="osk-tip">Ingresá tu documento solo con números (sin puntos ni espacios) y pasá al nombre.</p>
+                    <button type="button" class="btn btn-primary osk-next-btn" id="osk-to-name">
+                      <span>Siguiente:</span>
+                      <strong>Escribir Nombre →</strong>
+                    </button>
+                  </div>
                 </div>
-                <button type="button" class="btn btn-primary osk-next-btn" id="osk-to-name">
-                  Siguiente: Escribir Nombre y Apellido →
-                </button>
               </div>
 
               <!-- Teclado QWERTY Español (cuando el foco está en Nombre) -->
