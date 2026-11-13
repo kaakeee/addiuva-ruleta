@@ -331,6 +331,9 @@
     [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => blip(f, 0.22, 'triangle', 0.14, i * 0.12));
     [523.25, 659.25, 783.99, 1046.5].forEach((f) => blip(f, 1.1, 'sine', 0.07, 0.55));
   }
+  function suspenseChime() {
+    [329.63, 392.0, 493.88, 659.25].forEach((f, i) => blip(f, 0.2, 'triangle', 0.11, i * 0.11));
+  }
 
   /* ---------------- Ruleta Canvas ---------------- */
   const wheelCanvas = $('#wheel');
@@ -339,6 +342,8 @@
   const SEG_COLORS = ['#4B39EC', '#8C46CD', '#E75CE0', '#FFB26B', '#2E1B73', '#B04FD6'];
   let overlayOpen = false;
   let pendingWinner = null;
+  let winnerRevealed = false;
+  let revealLockUntil = 0;
 
   function sizeWheel() {
     const rect = wheelCanvas.getBoundingClientRect();
@@ -476,13 +481,67 @@
   }
 
   function showWinner(emp, prize) {
-    pendingWinner = { dni: emp.dni, prizeId: prize.id };
+    const mysteryMode = !state.config.showNames;
+    pendingWinner = { dni: emp.dni, nombre: emp.nombre, numero: emp.numero, prizeId: prize.id };
     overlayOpen = true;
     $('#winner-prize').textContent = prize.nombre;
     $('#winner-number').textContent = `#${pad(emp.numero)}`;
-    $('#winner-name').textContent = emp.nombre;
-    $('#winner-area').textContent = `DNI ${maskDni(emp.dni)}`;
-    $('#winner-overlay').classList.add('show');
+
+    if (mysteryMode) {
+      winnerRevealed = false;
+      $('#winner-card').classList.add('is-mystery');
+      $('#winner-card').classList.remove('is-revealed');
+      $('#winner-eyebrow').textContent = '🔮 ¡NÚMERO GANADOR!';
+      $('#mystery-question').textContent = `¿Quién tiene el número #${pad(emp.numero)}?`;
+      $('#winner-mystery-box').hidden = false;
+      $('#winner-name').textContent = '';
+      $('#winner-area').textContent = '';
+      $('#winner-name').hidden = true;
+      $('#winner-area').hidden = true;
+      $('#winner-reveal').hidden = false;
+      $('#winner-reveal-hint').hidden = false;
+      $('#winner-confirm').hidden = true;
+      $('#winner-absent').hidden = true;
+      $('#winner-overlay').classList.add('show');
+      suspenseChime();
+      setTimeout(() => $('#winner-reveal').focus(), 60);
+    } else {
+      winnerRevealed = true;
+      $('#winner-card').classList.remove('is-mystery');
+      $('#winner-card').classList.add('is-revealed');
+      $('#winner-eyebrow').textContent = '¡TENEMOS GANADOR!';
+      $('#winner-mystery-box').hidden = true;
+      $('#winner-name').textContent = emp.nombre;
+      $('#winner-area').textContent = `DNI ${maskDni(emp.dni)}`;
+      $('#winner-name').hidden = false;
+      $('#winner-area').hidden = false;
+      $('#winner-reveal').hidden = true;
+      $('#winner-reveal-hint').hidden = true;
+      $('#winner-confirm').hidden = false;
+      $('#winner-absent').hidden = false;
+      $('#winner-overlay').classList.add('show');
+      fanfare();
+      confetti();
+      setTimeout(() => $('#winner-confirm').focus(), 60);
+    }
+  }
+
+  function revealWinner() {
+    if (!pendingWinner || winnerRevealed) return;
+    winnerRevealed = true;
+    revealLockUntil = performance.now() + 260;
+    $('#winner-card').classList.remove('is-mystery');
+    $('#winner-card').classList.add('is-revealed');
+    $('#winner-eyebrow').textContent = '🎉 ¡TENEMOS GANADOR!';
+    $('#winner-mystery-box').hidden = true;
+    $('#winner-name').textContent = pendingWinner.nombre;
+    $('#winner-area').textContent = `DNI ${maskDni(pendingWinner.dni)}`;
+    $('#winner-name').hidden = false;
+    $('#winner-area').hidden = false;
+    $('#winner-reveal').hidden = true;
+    $('#winner-reveal-hint').hidden = true;
+    $('#winner-confirm').hidden = false;
+    $('#winner-absent').hidden = false;
     fanfare();
     confetti();
     setTimeout(() => $('#winner-confirm').focus(), 60);
@@ -491,11 +550,16 @@
   function closeWinner() {
     overlayOpen = false;
     pendingWinner = null;
+    winnerRevealed = false;
     $('#winner-overlay').classList.remove('show');
+    $('#winner-card').classList.remove('is-mystery', 'is-revealed');
+    $('#winner-name').textContent = '';
+    $('#winner-area').textContent = '';
+    document.activeElement?.blur?.();
   }
 
   function confirmWinner() {
-    if (!pendingWinner) return;
+    if (!pendingWinner || !winnerRevealed || performance.now() < revealLockUntil) return;
     const emp = state.employees.find((e) => cleanDni(e.dni) === cleanDni(pendingWinner.dni));
     const prize = state.prizes.find((p) => p.id === pendingWinner.prizeId);
     if (emp && prize) {
@@ -508,7 +572,7 @@
   }
 
   function absentWinner() {
-    if (!pendingWinner) return;
+    if (!pendingWinner || !winnerRevealed || performance.now() < revealLockUntil) return;
     const emp = state.employees.find((e) => cleanDni(e.dni) === cleanDni(pendingWinner.dni));
     if (emp) emp.ausente = true;
     closeWinner();
@@ -571,11 +635,19 @@
     $('#count-present').textContent = elig.length;
     $('#count-total').textContent = `/ ${pres.length} inscriptos`;
     $('#count-bar').style.width = pres.length ? `${(elig.length / pres.length) * 100}%` : '0';
-    $('#stage-show-names').checked = !!state.config.showNames;
+    const showNames = !!state.config.showNames;
+    $('#stage-show-names').checked = showNames;
+    $('.stage-mode-switch')?.classList.toggle('is-number-mode', !showNames);
+    const modeHint = $('#stage-mode-hint');
+    if (modeHint) {
+      modeHint.textContent = showNames
+        ? 'Modo nombres · se ve en cada gajo'
+        : 'Modo números · nombre oculto hasta descubrirlo';
+    }
 
     const recent = pres.slice().sort((a, b) => b.checkin.localeCompare(a.checkin)).slice(0, 8);
     $('#feed').innerHTML = recent.map((e) =>
-      `<li><span class="num">#${pad(e.numero)}</span><span class="who">${esc(e.nombre)}</span><time>${fmtTime(e.checkin)}</time></li>`).join('');
+      `<li class="${showNames ? '' : 'masked'}"><span class="num">#${pad(e.numero)}</span><span class="who">${showNames ? esc(e.nombre) : 'Nombre oculto'}</span><time>${fmtTime(e.checkin)}</time></li>`).join('');
     $('#feed-empty').hidden = recent.length > 0;
 
     const p = currentPrize();
@@ -1075,18 +1147,22 @@
 
   /* ---------------- Eventos de la Ruleta ---------------- */
   $('#spin-btn').addEventListener('click', spin);
+  $('#winner-reveal').addEventListener('click', revealWinner);
   $('#winner-confirm').addEventListener('click', confirmWinner);
   $('#winner-absent').addEventListener('click', absentWinner);
   $('#stage-show-names').addEventListener('change', (e) => {
     state.config.showNames = e.target.checked;
+    e.target.blur();
     save();
   });
-  $('#prize-prev').addEventListener('click', () => {
+  $('#prize-prev').addEventListener('click', (e) => {
+    e.currentTarget.blur();
     if (!state.prizes.length || wheel.spinning) return;
     state.current = mod(state.current - 1, state.prizes.length);
     save();
   });
-  $('#prize-next').addEventListener('click', () => {
+  $('#prize-next').addEventListener('click', (e) => {
+    e.currentTarget.blur();
     if (!state.prizes.length || wheel.spinning) return;
     state.current = mod(state.current + 1, state.prizes.length);
     save();
@@ -1099,14 +1175,28 @@
   });
   document.addEventListener('keydown', (e) => {
     if (activeView() !== 'view-pantalla') return;
-    if (/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) return;
-    if ($('#auth-overlay').classList.contains('show')) return;
+    const ae = document.activeElement;
+    if (ae && (/TEXTAREA|SELECT/.test(ae.tagName) || (ae.tagName === 'INPUT' && ae.type !== 'checkbox'))) return;
+    if ($('#auth-overlay').classList.contains('show') || $('#confirm-overlay').classList.contains('show')) return;
     if (overlayOpen) {
-      if (e.key === 'Enter') { e.preventDefault(); confirmWinner(); }
+      if (!winnerRevealed) {
+        if ([' ', 'Enter', 'PageDown', 'ArrowRight', 'ArrowDown'].includes(e.key)) {
+          e.preventDefault();
+          e.stopPropagation();
+          revealWinner();
+        }
+        return;
+      }
+      if (e.key === 'Enter' && performance.now() > revealLockUntil && ae !== $('#winner-absent')) {
+        e.preventDefault();
+        e.stopPropagation();
+        confirmWinner();
+      }
       return;
     }
     if ([' ', 'Enter', 'PageDown', 'ArrowRight', 'ArrowDown'].includes(e.key)) {
       e.preventDefault();
+      e.stopPropagation();
       spin();
     }
     if (e.key === 'f' || e.key === 'F') {

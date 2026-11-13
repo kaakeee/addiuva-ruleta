@@ -248,7 +248,7 @@
             <div class="progress"><div id="count-bar"></div></div>
             <div class="stage-mode-switch">
               <label class="switch">
-                <span>Mostrar nombres en la ruleta</span>
+                <span>Mostrar nombres en la ruleta<small id="stage-mode-hint">Modo números · oculta el nombre hasta descubrirlo</small></span>
                 <input type="checkbox" id="stage-show-names" />
               </label>
             </div>
@@ -301,19 +301,27 @@
       </div>
 
       <!-- Modal de Ganador -->
-      <div class="overlay" id="winner-overlay" role="dialog" aria-modal="true" aria-labelledby="winner-name">
-        <div class="winner-card">
-          <div class="eyebrow">¡TENEMOS GANADOR!</div>
+      <div class="overlay" id="winner-overlay" role="dialog" aria-modal="true" aria-labelledby="winner-eyebrow">
+        <div class="winner-card" id="winner-card">
+          <div class="eyebrow" id="winner-eyebrow">¡TENEMOS GANADOR!</div>
           <div class="winner-prize" id="winner-prize"></div>
           <div class="winner-number" id="winner-number"></div>
+          <div class="winner-mystery-box" id="winner-mystery-box" hidden>
+            <div class="mystery-badge">🔒 Nombre oculto · Modo suspenso</div>
+            <div class="mystery-question" id="mystery-question">¿Quién tiene este número?</div>
+          </div>
           <div class="winner-name" id="winner-name"></div>
           <div class="winner-area" id="winner-area"></div>
           <div class="winner-actions">
+            <button class="btn btn-gold btn-lg btn-reveal" id="winner-reveal" hidden>
+              👁️ Descubrir nombre ganador
+            </button>
             <button class="btn btn-gold btn-lg" id="winner-confirm">
               ✓ Confirmar entrega
             </button>
             <button class="btn btn-ghost btn-lg" id="winner-absent">No está · girar de nuevo</button>
           </div>
+          <p class="winner-reveal-hint" id="winner-reveal-hint" hidden>Presioná <kbd>Espacio</kbd>, <kbd>Enter</kbd> o tocá el botón para revelar el ganador</p>
         </div>
       </div>
       <canvas id="confetti" hidden></canvas>
@@ -374,7 +382,7 @@
                 </div>
               </div>
               <label class="switch"><span>Quitar ganadores de la ruleta<small>Evita que la misma persona gane 2 premios</small></span><input type="checkbox" id="cfg-remove" /></label>
-              <label class="switch"><span>Mostrar nombres en la ruleta<small>Muestra “#001 · Nombre” en cada gajo</small></span><input type="checkbox" id="cfg-names" /></label>
+              <label class="switch"><span>Mostrar nombres en la ruleta<small>Si se apaga (Modo Números), el nombre ganador queda oculto hasta descubrirlo</small></span><input type="checkbox" id="cfg-names" /></label>
               <label class="switch"><span>Validar contra padrón pre-cargado<small>Solo permite DNIs que estén en la lista importada</small></span><input type="checkbox" id="cfg-roster-only" /></label>
               <label class="switch"><span>Sonidos de giro y celebración<small>Efectos de púa y fanfarria</small></span><input type="checkbox" id="cfg-sound" /></label>
             </div>

@@ -4,11 +4,12 @@ Aplicación todo-en-uno para el sorteo de fin de año de **Addiuva** (~100 perso
 
 ---
 
-## 📦 Descarga directa para Windows (`.zip` con `.exe`)
+## 📦 Descarga directa para Windows (`.exe` único autónomo)
 
-El paquete listo para usar en Windows 10 / Windows 11 (64 bits) se encuentra en:
+**`AddiuvaRuleta.exe` es un único archivo ejecutable** (ya trae incrustada toda la aplicación, estilos, teclado táctil y ruleta; no necesita otros archivos para funcionar):
 
-- **[`dist/AddiuvaRuleta-Windows-x64.zip`](dist/AddiuvaRuleta-Windows-x64.zip)** *(contiene `AddiuvaRuleta.exe`, `LEEME-WINDOWS.txt` y `ruleta-addiuva.html`)*
+- 🚀 **Descarga directa (`.exe` único):** **[`dist/AddiuvaRuleta.exe`](dist/AddiuvaRuleta.exe)** *(solo descargar y hacer doble clic)*
+- 📦 **Alternativa comprimida (`.zip`):** **[`dist/AddiuvaRuleta-Windows-x64.zip`](dist/AddiuvaRuleta-Windows-x64.zip)** *(contiene únicamente `AddiuvaRuleta.exe`, útil si el navegador bloquea descargar `.exe` sueltos)*
 - También disponible en la sección **Releases** de este repositorio en GitHub.
 
 ### ¿Qué hace `AddiuvaRuleta.exe` al abrirlo en Windows?
@@ -16,6 +17,7 @@ El paquete listo para usar en Windows 10 / Windows 11 (64 bits) se encuentra en:
 2. **Solo se desbloquea o cierra con contraseña:**
    - Contraseña por defecto: **`2026`** *(se puede cambiar desde el panel Admin)*.
    - Si alguien intenta cerrar la ventana con `Alt+F4` sin ingresar la contraseña de administrador en el botón **⏻ Salir**, el proceso guardián (*watchdog*) de `AddiuvaRuleta.exe` la vuelve a abrir instantáneamente en pantalla completa.
+   - Si intentás abrir `AddiuvaRuleta.exe` una segunda vez estando ya en ejecución, evita duplicar procesos.
 3. **Mantiene la PC y la pantalla siempre encendidas:** Invoca la API nativa de Windows (`kernel32.dll` → `SetThreadExecutionState`) + `Screen Wake Lock` para impedir que Windows apague el monitor o entre en suspensión durante el evento.
 4. **Guardado automático en disco:** Cada inscripción y cada premio sorteado se guardan en tiempo real junto al `.exe` en:
    - `datos-sorteo-addiuva.json` (si la notebook se apaga o reinicia, al abrir `AddiuvaRuleta.exe` recupera todos los inscriptos).
@@ -25,7 +27,7 @@ El paquete listo para usar en Windows 10 / Windows 11 (64 bits) se encuentra en:
 
 ## 🛡️ ¿Cómo evita que una persona se inscriba 2 veces?
 
-En el **Modo 1 · Inscripción (Kiosco)** cada asistente se identifica en la PC con su **DNI** y su **Nombre y Apellido Completo** (usando el teclado táctil integrado en pantalla o el teclado físico). El sistema aplica **triple validación anti-duplicado**:
+En el **Modo 1 · Inscripción (Kiosco)** cada asistente se identifica en la PC con su **DNI** y su **Nombre y Apellido Completo** (usando el teclado táctil integrado en pantalla sin disparar el teclado de Windows, o el teclado físico). El sistema aplica **triple validación anti-duplicado**:
 
 1. **Bloqueo por DNI único:** Limpia puntos, guiones, espacios y ceros a la izquierda. Si el mismo DNI intenta anotarse de nuevo, **no le genera otro número**: le muestra en pantalla el número que ya tenía asignado y suma +1 al contador de *Duplicados bloqueados*.
 2. **Bloqueo por Nombre y Apellido Completo (incluso invertido):** Normaliza mayúsculas y tildes, y compara tanto el orden normal (`Sofía González`) como el orden invertido (`González Sofía`). Si alguien intenta anotarse por segunda vez cambiando el DNI pero con el mismo nombre y apellido, el sistema bloquea el registro.
@@ -41,8 +43,9 @@ En el **Modo 1 · Inscripción (Kiosco)** cada asistente se identifica en la PC 
 3. Se desbloqueará la barra superior con:
    - **`1. Inscripción (Kiosco)`**: pantalla táctil para que la gente se anote.
    - **`2. Generar Ruleta`**: genera automáticamente la ruleta con todos los inscriptos habilitados, premios, sonido y lluvia de confeti.
-   - **`3. Admin / Datos`**: buscador de inscriptos, carga de premios, cambio de contraseña y exportación a CSV/Excel.
-   - **`🖥️ Ventana HDMI`**: abre una segunda ventana limpia solo con la ruleta para arrastrar al proyector HDMI (en modo *Extender pantalla* de Windows).
+     - **Modo Números (suspenso):** al apagar *“Mostrar nombres en la ruleta”*, los gajos muestran solo el número (`001`, `002`...), la columna lateral oculta los nombres en la TV y, al detenerse en un ganador, muestra primero el **número** con el **nombre oculto** hasta que toques **👁️ Descubrir nombre ganador** (o presiones `Espacio` / `Enter` de nuevo).
+   - **`3. Admin / Datos`**: buscador de inscriptos, eliminación de participantes/ganadores, carga de premios, cambio de contraseña y exportación a CSV/Excel.
+   - **`🖥️ Ventana HDMI`**: abre una segunda ventana limpia sincronizada en vivo solo con la ruleta para arrastrar al TV o proyector HDMI (`1080p` / `4K`).
    - **`🔒 Bloquear Kiosco`**: vuelve a ocultar los menús para dejar la PC bloqueada frente al público.
    - **`⏻ Salir`**: cierra la aplicación de Windows pidiendo la contraseña.
 
@@ -54,9 +57,9 @@ En el **Modo 1 · Inscripción (Kiosco)** cada asistente se identifica en la PC 
 # Regenerar el HTML autónomo (dist/ruleta-addiuva.html)
 python3 scripts/build_single.py
 
-# Compilar el ejecutable nativo para Windows 64-bit (dist/AddiuvaRuleta.exe)
+# Compilar el ejecutable único nativo para Windows 64-bit (dist/AddiuvaRuleta.exe)
 GOOS=windows GOARCH=amd64 go build -ldflags="-s -w -H=windowsgui" -o dist/AddiuvaRuleta.exe .
 
-# Empaquetar el .zip de distribución
-zip -j -9 dist/AddiuvaRuleta-Windows-x64.zip dist/AddiuvaRuleta.exe dist/LEEME-WINDOWS.txt dist/ruleta-addiuva.html
+# Empaquetar el .zip de respaldo con el .exe único
+zip -j -9 dist/AddiuvaRuleta-Windows-x64.zip dist/AddiuvaRuleta.exe
 ```

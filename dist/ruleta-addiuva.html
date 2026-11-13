@@ -610,12 +610,16 @@ body:not(.kiosk-locked) .top-actions { margin-left: 0; }
 .progress { height: clamp(8px, 0.7vh, 14px); border-radius: 999px; background: rgba(255,255,255,0.08); overflow: hidden; }
 .progress > div { height: 100%; width: 0; background: var(--grad); border-radius: inherit; transition: width .5s cubic-bezier(.2,.8,.2,1); }
 .stage-mode-switch { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
+.stage-mode-switch .switch span { font-size: clamp(13px, 0.92vw, 24px); line-height: 1.25; }
+.stage-mode-switch .switch small { font-size: clamp(11px, 0.78vw, 20px); margin-top: 2px; }
+.stage-mode-switch.is-number-mode .switch small { color: var(--gold); font-weight: 600; }
 
 .feed-card { padding: clamp(14px, 1.5vh, 30px) clamp(16px, 1.4vw, 30px); flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
 .feed { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: clamp(6px, 0.8vh, 18px); overflow: auto; }
 .feed li { display: flex; align-items: center; gap: 10px; font-size: clamp(13px, 0.95vw, 30px); animation: slideIn .35s ease; }
 .feed .num { font-weight: 800; font-variant-numeric: tabular-nums; color: var(--gold); min-width: clamp(42px, 3.2vw, 100px); }
 .feed .who { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+.feed li.masked .who { color: var(--muted); font-weight: 500; font-style: italic; }
 .feed time { color: var(--muted); font-size: 0.86em; }
 .feed-empty { color: var(--muted); font-size: 13.5px; margin-top: 12px; }
 @keyframes slideIn { from { opacity: 0; transform: translateX(-8px); } to { opacity: 1; transform: none; } }
@@ -762,9 +766,57 @@ kbd { font-family: inherit; font-size: 0.92em; padding: 2px 7px; border-radius: 
   text-shadow: 0 10px 40px rgba(255, 204, 110, 0.35);
   font-variant-numeric: tabular-nums;
 }
+.winner-card.is-mystery .winner-number {
+  animation: mysteryPulse 1.8s ease-in-out infinite;
+}
+@keyframes mysteryPulse {
+  0%, 100% { transform: scale(1); text-shadow: 0 10px 40px rgba(255, 204, 110, 0.35); }
+  50% { transform: scale(1.03); text-shadow: 0 14px 56px rgba(255, 204, 110, 0.65); }
+}
+.winner-mystery-box {
+  margin: clamp(12px, 1.6vh, 26px) auto 4px;
+  padding: clamp(14px, 1.8vh, 28px) clamp(18px, 2vw, 36px);
+  border-radius: 20px;
+  background: rgba(12, 5, 32, 0.55);
+  border: 1.5px dashed rgba(255, 204, 110, 0.45);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.mystery-badge {
+  font-size: clamp(12px, 1vw, 22px);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+.mystery-question {
+  font-size: clamp(20px, 2.2vw, 44px);
+  font-weight: 800;
+  color: var(--ink);
+}
 .winner-name { font-size: clamp(26px, 3.4vw, 68px); font-weight: 800; }
 .winner-area { color: var(--muted); margin-top: 6px; font-size: clamp(15px, 1.25vw, 26px); }
+.winner-card.is-revealed .winner-name,
+.winner-card.is-revealed .winner-area {
+  animation: revealPop .45s cubic-bezier(.18, .9, .32, 1.25);
+}
+@keyframes revealPop {
+  from { opacity: 0; transform: scale(0.84) translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+.btn-reveal {
+  font-size: clamp(16px, 1.35vw, 30px);
+  padding: clamp(14px, 1.5vh, 26px) clamp(24px, 2.4vw, 48px);
+  box-shadow: 0 16px 40px -10px rgba(255, 204, 110, 0.9);
+}
 .winner-actions { display: flex; gap: 12px; justify-content: center; margin-top: 26px; flex-wrap: wrap; }
+.winner-reveal-hint {
+  margin-top: 14px;
+  font-size: clamp(12px, 0.95vw, 22px);
+  color: var(--muted);
+}
 
 /* Modal Contraseña Admin */
 .auth-card {
@@ -1133,7 +1185,7 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
             <div class="progress"><div id="count-bar"></div></div>
             <div class="stage-mode-switch">
               <label class="switch">
-                <span>Mostrar nombres en la ruleta</span>
+                <span>Mostrar nombres en la ruleta<small id="stage-mode-hint">Modo números · oculta el nombre hasta descubrirlo</small></span>
                 <input type="checkbox" id="stage-show-names" />
               </label>
             </div>
@@ -1186,19 +1238,27 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
       </div>
 
       <!-- Modal de Ganador -->
-      <div class="overlay" id="winner-overlay" role="dialog" aria-modal="true" aria-labelledby="winner-name">
-        <div class="winner-card">
-          <div class="eyebrow">¡TENEMOS GANADOR!</div>
+      <div class="overlay" id="winner-overlay" role="dialog" aria-modal="true" aria-labelledby="winner-eyebrow">
+        <div class="winner-card" id="winner-card">
+          <div class="eyebrow" id="winner-eyebrow">¡TENEMOS GANADOR!</div>
           <div class="winner-prize" id="winner-prize"></div>
           <div class="winner-number" id="winner-number"></div>
+          <div class="winner-mystery-box" id="winner-mystery-box" hidden>
+            <div class="mystery-badge">🔒 Nombre oculto · Modo suspenso</div>
+            <div class="mystery-question" id="mystery-question">¿Quién tiene este número?</div>
+          </div>
           <div class="winner-name" id="winner-name"></div>
           <div class="winner-area" id="winner-area"></div>
           <div class="winner-actions">
+            <button class="btn btn-gold btn-lg btn-reveal" id="winner-reveal" hidden>
+              👁️ Descubrir nombre ganador
+            </button>
             <button class="btn btn-gold btn-lg" id="winner-confirm">
               ✓ Confirmar entrega
             </button>
             <button class="btn btn-ghost btn-lg" id="winner-absent">No está · girar de nuevo</button>
           </div>
+          <p class="winner-reveal-hint" id="winner-reveal-hint" hidden>Presioná <kbd>Espacio</kbd>, <kbd>Enter</kbd> o tocá el botón para revelar el ganador</p>
         </div>
       </div>
       <canvas id="confetti" hidden></canvas>
@@ -1259,7 +1319,7 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
                 </div>
               </div>
               <label class="switch"><span>Quitar ganadores de la ruleta<small>Evita que la misma persona gane 2 premios</small></span><input type="checkbox" id="cfg-remove" /></label>
-              <label class="switch"><span>Mostrar nombres en la ruleta<small>Muestra “#001 · Nombre” en cada gajo</small></span><input type="checkbox" id="cfg-names" /></label>
+              <label class="switch"><span>Mostrar nombres en la ruleta<small>Si se apaga (Modo Números), el nombre ganador queda oculto hasta descubrirlo</small></span><input type="checkbox" id="cfg-names" /></label>
               <label class="switch"><span>Validar contra padrón pre-cargado<small>Solo permite DNIs que estén en la lista importada</small></span><input type="checkbox" id="cfg-roster-only" /></label>
               <label class="switch"><span>Sonidos de giro y celebración<small>Efectos de púa y fanfarria</small></span><input type="checkbox" id="cfg-sound" /></label>
             </div>
@@ -1663,6 +1723,9 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
     [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => blip(f, 0.22, 'triangle', 0.14, i * 0.12));
     [523.25, 659.25, 783.99, 1046.5].forEach((f) => blip(f, 1.1, 'sine', 0.07, 0.55));
   }
+  function suspenseChime() {
+    [329.63, 392.0, 493.88, 659.25].forEach((f, i) => blip(f, 0.2, 'triangle', 0.11, i * 0.11));
+  }
 
   /* ---------------- Ruleta Canvas ---------------- */
   const wheelCanvas = $('#wheel');
@@ -1671,6 +1734,8 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
   const SEG_COLORS = ['#4B39EC', '#8C46CD', '#E75CE0', '#FFB26B', '#2E1B73', '#B04FD6'];
   let overlayOpen = false;
   let pendingWinner = null;
+  let winnerRevealed = false;
+  let revealLockUntil = 0;
 
   function sizeWheel() {
     const rect = wheelCanvas.getBoundingClientRect();
@@ -1808,13 +1873,67 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
   }
 
   function showWinner(emp, prize) {
-    pendingWinner = { dni: emp.dni, prizeId: prize.id };
+    const mysteryMode = !state.config.showNames;
+    pendingWinner = { dni: emp.dni, nombre: emp.nombre, numero: emp.numero, prizeId: prize.id };
     overlayOpen = true;
     $('#winner-prize').textContent = prize.nombre;
     $('#winner-number').textContent = `#${pad(emp.numero)}`;
-    $('#winner-name').textContent = emp.nombre;
-    $('#winner-area').textContent = `DNI ${maskDni(emp.dni)}`;
-    $('#winner-overlay').classList.add('show');
+
+    if (mysteryMode) {
+      winnerRevealed = false;
+      $('#winner-card').classList.add('is-mystery');
+      $('#winner-card').classList.remove('is-revealed');
+      $('#winner-eyebrow').textContent = '🔮 ¡NÚMERO GANADOR!';
+      $('#mystery-question').textContent = `¿Quién tiene el número #${pad(emp.numero)}?`;
+      $('#winner-mystery-box').hidden = false;
+      $('#winner-name').textContent = '';
+      $('#winner-area').textContent = '';
+      $('#winner-name').hidden = true;
+      $('#winner-area').hidden = true;
+      $('#winner-reveal').hidden = false;
+      $('#winner-reveal-hint').hidden = false;
+      $('#winner-confirm').hidden = true;
+      $('#winner-absent').hidden = true;
+      $('#winner-overlay').classList.add('show');
+      suspenseChime();
+      setTimeout(() => $('#winner-reveal').focus(), 60);
+    } else {
+      winnerRevealed = true;
+      $('#winner-card').classList.remove('is-mystery');
+      $('#winner-card').classList.add('is-revealed');
+      $('#winner-eyebrow').textContent = '¡TENEMOS GANADOR!';
+      $('#winner-mystery-box').hidden = true;
+      $('#winner-name').textContent = emp.nombre;
+      $('#winner-area').textContent = `DNI ${maskDni(emp.dni)}`;
+      $('#winner-name').hidden = false;
+      $('#winner-area').hidden = false;
+      $('#winner-reveal').hidden = true;
+      $('#winner-reveal-hint').hidden = true;
+      $('#winner-confirm').hidden = false;
+      $('#winner-absent').hidden = false;
+      $('#winner-overlay').classList.add('show');
+      fanfare();
+      confetti();
+      setTimeout(() => $('#winner-confirm').focus(), 60);
+    }
+  }
+
+  function revealWinner() {
+    if (!pendingWinner || winnerRevealed) return;
+    winnerRevealed = true;
+    revealLockUntil = performance.now() + 260;
+    $('#winner-card').classList.remove('is-mystery');
+    $('#winner-card').classList.add('is-revealed');
+    $('#winner-eyebrow').textContent = '🎉 ¡TENEMOS GANADOR!';
+    $('#winner-mystery-box').hidden = true;
+    $('#winner-name').textContent = pendingWinner.nombre;
+    $('#winner-area').textContent = `DNI ${maskDni(pendingWinner.dni)}`;
+    $('#winner-name').hidden = false;
+    $('#winner-area').hidden = false;
+    $('#winner-reveal').hidden = true;
+    $('#winner-reveal-hint').hidden = true;
+    $('#winner-confirm').hidden = false;
+    $('#winner-absent').hidden = false;
     fanfare();
     confetti();
     setTimeout(() => $('#winner-confirm').focus(), 60);
@@ -1823,11 +1942,16 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
   function closeWinner() {
     overlayOpen = false;
     pendingWinner = null;
+    winnerRevealed = false;
     $('#winner-overlay').classList.remove('show');
+    $('#winner-card').classList.remove('is-mystery', 'is-revealed');
+    $('#winner-name').textContent = '';
+    $('#winner-area').textContent = '';
+    document.activeElement?.blur?.();
   }
 
   function confirmWinner() {
-    if (!pendingWinner) return;
+    if (!pendingWinner || !winnerRevealed || performance.now() < revealLockUntil) return;
     const emp = state.employees.find((e) => cleanDni(e.dni) === cleanDni(pendingWinner.dni));
     const prize = state.prizes.find((p) => p.id === pendingWinner.prizeId);
     if (emp && prize) {
@@ -1840,7 +1964,7 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
   }
 
   function absentWinner() {
-    if (!pendingWinner) return;
+    if (!pendingWinner || !winnerRevealed || performance.now() < revealLockUntil) return;
     const emp = state.employees.find((e) => cleanDni(e.dni) === cleanDni(pendingWinner.dni));
     if (emp) emp.ausente = true;
     closeWinner();
@@ -1903,11 +2027,19 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
     $('#count-present').textContent = elig.length;
     $('#count-total').textContent = `/ ${pres.length} inscriptos`;
     $('#count-bar').style.width = pres.length ? `${(elig.length / pres.length) * 100}%` : '0';
-    $('#stage-show-names').checked = !!state.config.showNames;
+    const showNames = !!state.config.showNames;
+    $('#stage-show-names').checked = showNames;
+    $('.stage-mode-switch')?.classList.toggle('is-number-mode', !showNames);
+    const modeHint = $('#stage-mode-hint');
+    if (modeHint) {
+      modeHint.textContent = showNames
+        ? 'Modo nombres · se ve en cada gajo'
+        : 'Modo números · nombre oculto hasta descubrirlo';
+    }
 
     const recent = pres.slice().sort((a, b) => b.checkin.localeCompare(a.checkin)).slice(0, 8);
     $('#feed').innerHTML = recent.map((e) =>
-      `<li><span class="num">#${pad(e.numero)}</span><span class="who">${esc(e.nombre)}</span><time>${fmtTime(e.checkin)}</time></li>`).join('');
+      `<li class="${showNames ? '' : 'masked'}"><span class="num">#${pad(e.numero)}</span><span class="who">${showNames ? esc(e.nombre) : 'Nombre oculto'}</span><time>${fmtTime(e.checkin)}</time></li>`).join('');
     $('#feed-empty').hidden = recent.length > 0;
 
     const p = currentPrize();
@@ -2407,18 +2539,22 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
 
   /* ---------------- Eventos de la Ruleta ---------------- */
   $('#spin-btn').addEventListener('click', spin);
+  $('#winner-reveal').addEventListener('click', revealWinner);
   $('#winner-confirm').addEventListener('click', confirmWinner);
   $('#winner-absent').addEventListener('click', absentWinner);
   $('#stage-show-names').addEventListener('change', (e) => {
     state.config.showNames = e.target.checked;
+    e.target.blur();
     save();
   });
-  $('#prize-prev').addEventListener('click', () => {
+  $('#prize-prev').addEventListener('click', (e) => {
+    e.currentTarget.blur();
     if (!state.prizes.length || wheel.spinning) return;
     state.current = mod(state.current - 1, state.prizes.length);
     save();
   });
-  $('#prize-next').addEventListener('click', () => {
+  $('#prize-next').addEventListener('click', (e) => {
+    e.currentTarget.blur();
     if (!state.prizes.length || wheel.spinning) return;
     state.current = mod(state.current + 1, state.prizes.length);
     save();
@@ -2431,14 +2567,28 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
   });
   document.addEventListener('keydown', (e) => {
     if (activeView() !== 'view-pantalla') return;
-    if (/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) return;
-    if ($('#auth-overlay').classList.contains('show')) return;
+    const ae = document.activeElement;
+    if (ae && (/TEXTAREA|SELECT/.test(ae.tagName) || (ae.tagName === 'INPUT' && ae.type !== 'checkbox'))) return;
+    if ($('#auth-overlay').classList.contains('show') || $('#confirm-overlay').classList.contains('show')) return;
     if (overlayOpen) {
-      if (e.key === 'Enter') { e.preventDefault(); confirmWinner(); }
+      if (!winnerRevealed) {
+        if ([' ', 'Enter', 'PageDown', 'ArrowRight', 'ArrowDown'].includes(e.key)) {
+          e.preventDefault();
+          e.stopPropagation();
+          revealWinner();
+        }
+        return;
+      }
+      if (e.key === 'Enter' && performance.now() > revealLockUntil && ae !== $('#winner-absent')) {
+        e.preventDefault();
+        e.stopPropagation();
+        confirmWinner();
+      }
       return;
     }
     if ([' ', 'Enter', 'PageDown', 'ArrowRight', 'ArrowDown'].includes(e.key)) {
       e.preventDefault();
+      e.stopPropagation();
       spin();
     }
     if (e.key === 'f' || e.key === 'F') {

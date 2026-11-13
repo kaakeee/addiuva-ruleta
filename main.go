@@ -165,6 +165,9 @@ func writeCsvBackupLocked() error {
 }
 
 func main() {
+	if !acquireSingleInstance() {
+		return
+	}
 	exePath, err := os.Executable()
 	baseDir := "."
 	if err == nil {
@@ -283,6 +286,7 @@ func main() {
 			mu.Unlock()
 			return
 		}
+		startedAt := time.Now()
 		cmd := launchKioskBrowser(kioskURL, profileDir)
 		activeKioskCmd = cmd
 		mu.Unlock()
@@ -292,6 +296,10 @@ func main() {
 			select {}
 		}
 		_ = cmd.Wait()
-		time.Sleep(400 * time.Millisecond)
+		if time.Since(startedAt) < 1500*time.Millisecond {
+			time.Sleep(3 * time.Second)
+		} else {
+			time.Sleep(400 * time.Millisecond)
+		}
 	}
 }

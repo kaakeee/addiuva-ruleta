@@ -601,12 +601,16 @@ body:not(.kiosk-locked) .top-actions { margin-left: 0; }
 .progress { height: clamp(8px, 0.7vh, 14px); border-radius: 999px; background: rgba(255,255,255,0.08); overflow: hidden; }
 .progress > div { height: 100%; width: 0; background: var(--grad); border-radius: inherit; transition: width .5s cubic-bezier(.2,.8,.2,1); }
 .stage-mode-switch { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
+.stage-mode-switch .switch span { font-size: clamp(13px, 0.92vw, 24px); line-height: 1.25; }
+.stage-mode-switch .switch small { font-size: clamp(11px, 0.78vw, 20px); margin-top: 2px; }
+.stage-mode-switch.is-number-mode .switch small { color: var(--gold); font-weight: 600; }
 
 .feed-card { padding: clamp(14px, 1.5vh, 30px) clamp(16px, 1.4vw, 30px); flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
 .feed { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: clamp(6px, 0.8vh, 18px); overflow: auto; }
 .feed li { display: flex; align-items: center; gap: 10px; font-size: clamp(13px, 0.95vw, 30px); animation: slideIn .35s ease; }
 .feed .num { font-weight: 800; font-variant-numeric: tabular-nums; color: var(--gold); min-width: clamp(42px, 3.2vw, 100px); }
 .feed .who { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+.feed li.masked .who { color: var(--muted); font-weight: 500; font-style: italic; }
 .feed time { color: var(--muted); font-size: 0.86em; }
 .feed-empty { color: var(--muted); font-size: 13.5px; margin-top: 12px; }
 @keyframes slideIn { from { opacity: 0; transform: translateX(-8px); } to { opacity: 1; transform: none; } }
@@ -753,9 +757,57 @@ kbd { font-family: inherit; font-size: 0.92em; padding: 2px 7px; border-radius: 
   text-shadow: 0 10px 40px rgba(255, 204, 110, 0.35);
   font-variant-numeric: tabular-nums;
 }
+.winner-card.is-mystery .winner-number {
+  animation: mysteryPulse 1.8s ease-in-out infinite;
+}
+@keyframes mysteryPulse {
+  0%, 100% { transform: scale(1); text-shadow: 0 10px 40px rgba(255, 204, 110, 0.35); }
+  50% { transform: scale(1.03); text-shadow: 0 14px 56px rgba(255, 204, 110, 0.65); }
+}
+.winner-mystery-box {
+  margin: clamp(12px, 1.6vh, 26px) auto 4px;
+  padding: clamp(14px, 1.8vh, 28px) clamp(18px, 2vw, 36px);
+  border-radius: 20px;
+  background: rgba(12, 5, 32, 0.55);
+  border: 1.5px dashed rgba(255, 204, 110, 0.45);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.mystery-badge {
+  font-size: clamp(12px, 1vw, 22px);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+.mystery-question {
+  font-size: clamp(20px, 2.2vw, 44px);
+  font-weight: 800;
+  color: var(--ink);
+}
 .winner-name { font-size: clamp(26px, 3.4vw, 68px); font-weight: 800; }
 .winner-area { color: var(--muted); margin-top: 6px; font-size: clamp(15px, 1.25vw, 26px); }
+.winner-card.is-revealed .winner-name,
+.winner-card.is-revealed .winner-area {
+  animation: revealPop .45s cubic-bezier(.18, .9, .32, 1.25);
+}
+@keyframes revealPop {
+  from { opacity: 0; transform: scale(0.84) translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+.btn-reveal {
+  font-size: clamp(16px, 1.35vw, 30px);
+  padding: clamp(14px, 1.5vh, 26px) clamp(24px, 2.4vw, 48px);
+  box-shadow: 0 16px 40px -10px rgba(255, 204, 110, 0.9);
+}
 .winner-actions { display: flex; gap: 12px; justify-content: center; margin-top: 26px; flex-wrap: wrap; }
+.winner-reveal-hint {
+  margin-top: 14px;
+  font-size: clamp(12px, 0.95vw, 22px);
+  color: var(--muted);
+}
 
 /* Modal Contraseña Admin */
 .auth-card {

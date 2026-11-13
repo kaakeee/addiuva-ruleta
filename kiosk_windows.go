@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"syscall"
 	"time"
+	"unsafe"
 )
 
 const (
@@ -18,9 +19,24 @@ const (
 )
 
 var (
-	kernel32                = syscall.NewLazyDLL("kernel32.dll")
-	procSetThreadExecState  = kernel32.NewProc("SetThreadExecutionState")
+	kernel32               = syscall.NewLazyDLL("kernel32.dll")
+	procSetThreadExecState = kernel32.NewProc("SetThreadExecutionState")
+	procCreateMutexW       = kernel32.NewProc("CreateMutexW")
+	procCloseHandle        = kernel32.NewProc("CloseHandle")
 )
+
+func acquireSingleInstance() bool {
+	namePtr, err := syscall.UTF16PtrFromString("Local\\AddiuvaRuletaSingleInstance")
+	if err != nil {
+		return true
+	}
+	h, _, lastErr := procCreateMutexW.Call(0, 0, uintptr(unsafe.Pointer(namePtr)))
+	if h != 0 && lastErr == syscall.Errno(183) { // ERROR_ALREADY_EXISTS
+		_, _, _ = procCloseHandle.Call(h)
+		return false
+	}
+	return true
+}
 
 // keepSystemAwake mantiene la pantalla y la PC de Windows encendidas sin suspenderse.
 func keepSystemAwake(stop <-chan struct{}) {

@@ -4,6 +4,8 @@ package main
 
 import "os/exec"
 
+func acquireSingleInstance() bool { return true }
+
 func keepSystemAwake(stop <-chan struct{}) {
 	<-stop
 }
