@@ -1,57 +1,62 @@
-# Addiuva · Ruleta del Sorteo de Fin de Año 🎡
+# Addiuva · Kiosco de Inscripción (DNI + Nombre) y Ruleta Digital 🎡
 
-Ruleta digital estilo *Wheel of Names* para el sorteo de fin de año de Addiuva (unas 100 personas), con **check-in por QR** al llegar y protección contra participaciones duplicadas.
+Aplicación todo-en-uno para el sorteo de fin de año de **Addiuva** (~100 personas), diseñada especialmente para una **notebook táctil (Lenovo Yoga) + salida HDMI**.
 
-> Estado: **prototipo funcional (fase 0)**. Corre 100 % en el navegador, sin servidor. Ver el plan completo en [`docs/PLAN.md`](docs/PLAN.md).
+---
 
-## Cómo verlo
+## 📦 Descarga directa para Windows (`.zip` con `.exe`)
 
-**Opción 1: doble clic**
-1. Descargá el repo (botón verde **Code → Download ZIP**) y descomprimilo.
-2. Abrí `dist/ruleta-addiuva.html` en Chrome o Edge. Es un único archivo y funciona sin internet.
+El paquete listo para usar en Windows 10 / Windows 11 (64 bits) se encuentra en:
 
-**Opción 2: servidor local** (para probar el QR desde un celular en la misma red Wi-Fi)
+- **[`dist/AddiuvaRuleta-Windows-x64.zip`](dist/AddiuvaRuleta-Windows-x64.zip)** *(contiene `AddiuvaRuleta.exe`, `LEEME-WINDOWS.txt` y `ruleta-addiuva.html`)*
+- También disponible en la sección **Releases** de este repositorio en GitHub.
+
+### ¿Qué hace `AddiuvaRuleta.exe` al abrirlo en Windows?
+1. **Pantalla completa bloqueada (Modo Kiosco):** Abre la aplicación en modo Kiosco a pantalla completa sin barras de navegación ni botones de cierre.
+2. **Solo se desbloquea o cierra con contraseña:**
+   - Contraseña por defecto: **`2026`** *(se puede cambiar desde el panel Admin)*.
+   - Si alguien intenta cerrar la ventana con `Alt+F4` sin ingresar la contraseña de administrador en el botón **⏻ Salir**, el proceso guardián (*watchdog*) de `AddiuvaRuleta.exe` la vuelve a abrir instantáneamente en pantalla completa.
+3. **Mantiene la PC y la pantalla siempre encendidas:** Invoca la API nativa de Windows (`kernel32.dll` → `SetThreadExecutionState`) + `Screen Wake Lock` para impedir que Windows apague el monitor o entre en suspensión durante el evento.
+4. **Guardado automático en disco:** Cada inscripción y cada premio sorteado se guardan en tiempo real junto al `.exe` en:
+   - `datos-sorteo-addiuva.json` (si la notebook se apaga o reinicia, al abrir `AddiuvaRuleta.exe` recupera todos los inscriptos).
+   - `inscriptos-addiuva.csv` (planilla lista para abrir directamente en Excel).
+
+---
+
+## 🛡️ ¿Cómo evita que una persona se inscriba 2 veces?
+
+En el **Modo 1 · Inscripción (Kiosco)** cada asistente se identifica en la PC con su **DNI** y su **Nombre y Apellido Completo** (usando el teclado táctil integrado en pantalla o el teclado físico). El sistema aplica **triple validación anti-duplicado**:
+
+1. **Bloqueo por DNI único:** Limpia puntos, guiones, espacios y ceros a la izquierda. Si el mismo DNI intenta anotarse de nuevo, **no le genera otro número**: le muestra en pantalla el número que ya tenía asignado y suma +1 al contador de *Duplicados bloqueados*.
+2. **Bloqueo por Nombre y Apellido Completo (incluso invertido):** Normaliza mayúsculas y tildes, y compara tanto el orden normal (`Sofía González`) como el orden invertido (`González Sofía`). Si alguien intenta anotarse por segunda vez cambiando el DNI pero con el mismo nombre y apellido, el sistema bloquea el registro.
+3. **Paso de confirmación (“¿Están bien escritos tus datos?”):** Antes de asignar el número, muestra el DNI formateado y el nombre en grande para confirmar.
+4. **Padrón oficial opcional:** Desde `3. Admin / Datos` se puede pegar la lista de empleados (`DNI, Nombre`) y activar *“Validar contra padrón pre-cargado”* para permitir únicamente DNIs de la empresa.
+
+---
+
+## 🎡 Cómo pasar de la Inscripción a la Ruleta
+
+1. En la esquina superior derecha tocá **`🔒 Admin / Ruleta`**.
+2. Ingresá la contraseña de administrador (**`2026`** por defecto).
+3. Se desbloqueará la barra superior con:
+   - **`1. Inscripción (Kiosco)`**: pantalla táctil para que la gente se anote.
+   - **`2. Generar Ruleta`**: genera automáticamente la ruleta con todos los inscriptos habilitados, premios, sonido y lluvia de confeti.
+   - **`3. Admin / Datos`**: buscador de inscriptos, carga de premios, cambio de contraseña y exportación a CSV/Excel.
+   - **`🖥️ Ventana HDMI`**: abre una segunda ventana limpia solo con la ruleta para arrastrar al proyector HDMI (en modo *Extender pantalla* de Windows).
+   - **`🔒 Bloquear Kiosco`**: vuelve a ocultar los menús para dejar la PC bloqueada frente al público.
+   - **`⏻ Salir`**: cierra la aplicación de Windows pidiendo la contraseña.
+
+---
+
+## 🛠️ Compilar desde el código fuente
+
 ```bash
-cd prototipo
-python3 -m http.server 8080
-# En la laptop abrí http://<IP-de-la-laptop>:8080 (ej. http://192.168.0.15:8080)
-# El QR de la pantalla apunta a esa misma dirección: escanealo con el celular.
+# Regenerar el HTML autónomo (dist/ruleta-addiuva.html)
+python3 scripts/build_single.py
+
+# Compilar el ejecutable nativo para Windows 64-bit (dist/AddiuvaRuleta.exe)
+GOOS=windows GOARCH=amd64 go build -ldflags="-s -w -H=windowsgui" -o dist/AddiuvaRuleta.exe .
+
+# Empaquetar el .zip de distribución
+zip -j -9 dist/AddiuvaRuleta-Windows-x64.zip dist/AddiuvaRuleta.exe dist/LEEME-WINDOWS.txt dist/ruleta-addiuva.html
 ```
-
-## Las 3 pantallas
-
-| Pantalla | Para qué | Dispositivo |
-|---|---|---|
-| **Pantalla gigante** | Ruleta, QR de check-in, PIN del evento, contador en vivo y premios | Laptop conectada por HDMI al proyector o TV |
-| **Check-in (celular)** | Cada persona carga su legajo y el PIN, confirma “¿Sos vos?” y recibe su número | Celular de cada asistente |
-| **Recepción / Admin** | Check-in manual, premios, configuración, importación de Excel y exportación a CSV | Tablet o laptop de RR.HH. |
-
-**Tip:** abrí el archivo en **dos pestañas** (una en *Pantalla gigante* y otra en *Check-in*). Lo que registres en una aparece al instante en la otra.
-
-### Atajos en la pantalla gigante
-- `Espacio`, `Enter`, `→` o `PageDown`: girar (compatible con clickers de presentación)
-- `F`: pantalla completa
-- `Enter` con el ganador en pantalla: confirmar entrega
-
-## Datos de demo
-- PIN del evento: **2026** (se cambia en Recepción)
-- Legajos válidos: **1001 a 1100** (100 colaboradores ficticios)
-- Para cargar la lista real, pegá en Recepción las filas `legajo, nombre, área` copiadas desde Excel.
-
-## ¿Dónde se guardan los datos?
-En el prototipo, en el **`localStorage` del navegador** (solo en esa computadora). En producción se reemplaza por una base de datos en la nube (Supabase recomendado) con tiempo real y una restricción única por legajo. Detalle en [`docs/PLAN.md`](docs/PLAN.md).
-
-## Estructura
-```
-prototipo/
-  index.html       # estructura de las 3 vistas
-  styles.css       # sistema de diseño (paleta Addiuva)
-  app.js           # lógica: ruleta, check-in, recepción y sync entre pestañas
-  vendor/qrcode.js # generador de QR (MIT, Kazuhiko Arase)
-  assets/          # logo
-dist/ruleta-addiuva.html  # versión de un solo archivo (generada)
-scripts/build_single.py   # genera dist/
-docs/PLAN.md              # plan: web vs app, hardware, arquitectura, fases
-```
-
-Regenerar la versión de un solo archivo: `python3 scripts/build_single.py`

@@ -1,0 +1,66 @@
+========================================================================
+ ADDIUVA · KIOSCO DE INSCRIPCIÓN Y RULETA DE FIN DE AÑO (WINDOWS 64-BIT)
+========================================================================
+
+CONTENIDO DE ESTE PAQUETE (.ZIP)
+--------------------------------
+1. AddiuvaRuleta.exe
+   Aplicación nativa para Windows 10 / Windows 11 (ideal para notebook
+   Lenovo Yoga táctil + salida HDMI). No requiere instalación ni internet.
+
+2. ruleta-addiuva.html
+   Versión portátil en un solo archivo HTML (por si querés abrirla en
+   cualquier navegador sin usar el .exe).
+
+
+CÓMO USAR AddiuvaRuleta.exe EN EL EVENTO
+----------------------------------------
+1. Descomprimí este archivo .zip en una carpeta de tu PC (por ejemplo en
+   el Escritorio).
+2. Hacé doble clic en "AddiuvaRuleta.exe".
+3. La aplicación:
+   - Se abrirá automáticamente en MODO KIOSCO A PANTALLA COMPLETA.
+   - Mantendrá la PC y la pantalla SIEMPRE ENCENDIDAS (desactiva la
+     suspensión y el apagado de pantalla de Windows automáticamente
+     mediante la API SetThreadExecutionState de Windows).
+   - Si alguien intenta cerrar la ventana con Alt+F4 sin contraseña,
+     la aplicación se volverá a abrir sola inmediatamente.
+
+
+CONTRASEÑA DE ADMINISTRADOR (POR DEFECTO: 2026)
+-----------------------------------------------
+- Mientras está bloqueada en Modo Kiosco, los asistentes solo ven la
+  pantalla de Inscripción (DNI + Nombre y Apellido Completo) con el
+  teclado táctil integrado en pantalla.
+- Para pasar a la RULETA, abrir el PANEL DE CONTROL o SALIR A WINDOWS:
+  1. Tocá el botón "Admin / Ruleta" arriba a la derecha.
+  2. Ingresá la contraseña (por defecto: 2026).
+  3. Se habilitarán arriba las pestañas:
+     - "1. Inscripción (Kiosco)"
+     - "2. Generar Ruleta"
+     - "3. Admin / Datos" (acá podés cambiar la contraseña, cargar
+       premios o exportar a Excel)
+     - "🔒 Bloquear Kiosco" (vuelve a ocultar los controles)
+     - "🖥️ Ventana HDMI" (abre una 2.ª ventana limpia solo con la ruleta
+       para arrastrar al proyector HDMI en modo "Extender pantalla")
+     - "⏻ Salir" (cierra la aplicación de forma autorizada con contraseña)
+
+
+CÓMO EVITA INSCRIPCIONES DUPLICADAS
+-----------------------------------
+El sistema aplica triple validación automática:
+1. Por DNI único (sin importar si escriben puntos o espacios). Si un DNI
+   ya se inscribió, no genera otro número y le recuerda el que ya tiene.
+2. Por Nombre y Apellido completo (incluso si invierten el orden "Apellido
+   Nombre" e intentan poner otro DNI distinto).
+3. Opcional: desde "3. Admin / Datos" podés pegar el padrón oficial de
+   empleados y activar "Validar contra padrón pre-cargado".
+
+
+DÓNDE SE GUARDAN LOS DATOS EN LA PC
+-----------------------------------
+Cada vez que alguien se inscribe o sale un ganador, se guardan
+automáticamente dos archivos en la misma carpeta donde está AddiuvaRuleta.exe:
+- datos-sorteo-addiuva.json (base de datos automática; si la PC se apaga
+  o reinicia, al volver a abrir AddiuvaRuleta.exe recupera todo).
+- inscriptos-addiuva.csv (planilla lista para abrir directo con Excel).
