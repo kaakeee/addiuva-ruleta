@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#1E1041" />
+  <title>Addiuva · Ruleta del Sorteo de Fin de Año</title>
+  <meta name="description" content="Prototipo de ruleta digital con check-in por QR para el sorteo de fin de año de Addiuva." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <img src="assets/logo-addiuva-blanco.png" alt="Addiuva" class="logo-img" />
+      <span class="brand-divider" aria-hidden="true"></span>
+      <span class="brand-event">Sorteo de Fin de Año <strong>2026</strong></span>
+    </div>
+    <nav class="tabs" role="tablist" aria-label="Pantallas del sistema">
+      <button class="tab" role="tab" id="tab-pantalla" data-view="pantalla" aria-selected="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+        <span>Pantalla<span class="tab-long"> gigante</span></span>
+      </button>
+      <button class="tab" role="tab" id="tab-checkin" data-view="checkin" aria-selected="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="6" y="2" width="12" height="20" rx="3"/><path d="M11 18h2"/></svg>
+        <span>Check-in<span class="tab-long"> (celular)</span></span>
+      </button>
+      <button class="tab" role="tab" id="tab-admin" data-view="admin" aria-selected="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        <span>Recepción<span class="tab-long"> / Admin</span></span>
+      </button>
+    </nav>
+  </header>
+
+  <!-- =================== PANTALLA GIGANTE =================== -->
+  <main>
+  <section class="view active" id="view-pantalla" aria-labelledby="tab-pantalla">
+    <h1 class="sr-only">Pantalla gigante de la ruleta</h1>
+    <div class="stage">
+      <div class="stage-col">
+        <div class="card qr-card" id="qr-card" title="Abrir el check-in (demo)">
+          <div class="eyebrow">Check-in al llegar</div>
+          <h3>Escaneá y sumate al sorteo</h3>
+          <div class="qr-box"><canvas id="qr-canvas" width="240" height="240" aria-label="Código QR de check-in"></canvas></div>
+          <div class="qr-url" id="qr-url"></div>
+          <div class="pin-badge">
+            <span>PIN del evento<br />(solo visible en el salón)</span>
+            <strong id="pin-display">2026</strong>
+          </div>
+        </div>
+        <div class="card counter-card">
+          <div class="eyebrow">Participantes presentes</div>
+          <div class="counter-row">
+            <span class="counter-big" id="count-present">0</span>
+            <span class="counter-total" id="count-total">/ 100</span>
+          </div>
+          <div class="progress"><div id="count-bar"></div></div>
+        </div>
+        <div class="card feed-card">
+          <div class="eyebrow">Últimas llegadas</div>
+          <ul class="feed" id="feed"></ul>
+          <div class="feed-empty" id="feed-empty">Todavía no llegó nadie. Probá el check-in desde la pestaña “Check-in”.</div>
+        </div>
+      </div>
+
+      <div class="wheel-col">
+        <div class="prize-banner">
+          <span class="label">Ahora sorteamos</span>
+          <span class="name" id="current-prize">—</span>
+          <div class="prize-nav">
+            <button class="icon-btn" id="prize-prev" aria-label="Premio anterior"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+            <button class="icon-btn" id="prize-next" aria-label="Premio siguiente"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg></button>
+          </div>
+        </div>
+        <div class="wheel-wrap" id="wheel-wrap">
+          <div class="wheel-glow" aria-hidden="true"></div>
+          <svg class="wheel-pointer" id="wheel-pointer" viewBox="0 0 60 80" aria-hidden="true">
+            <defs><linearGradient id="pg" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#FFE3A6"/><stop offset="1" stop-color="#FFB26B"/></linearGradient></defs>
+            <path d="M30 78 L4 22 A28 28 0 1 1 56 22 Z" fill="url(#pg)" stroke="#1E1041" stroke-width="4"/>
+            <circle cx="30" cy="26" r="9" fill="#1E1041"/>
+          </svg>
+          <div class="wheel-ring"><canvas id="wheel" aria-label="Ruleta de participantes"></canvas></div>
+          <div class="wheel-empty" id="wheel-empty" hidden><div>La ruleta se llena a medida que la gente hace check-in.</div></div>
+          <button class="wheel-hub" id="spin-btn" aria-label="Girar la ruleta">
+            <span class="hub-inner">
+              <img src="assets/logo-addiuva-blanco.png" alt="" class="logo-img" />
+              <span class="hub-cta">GIRAR</span>
+            </span>
+          </button>
+        </div>
+        <div class="spin-hint"><kbd>Espacio</kbd> o clicker de presentación para girar · <kbd>F</kbd> pantalla completa</div>
+      </div>
+
+      <div class="stage-col">
+        <div class="card prizes-card">
+          <div class="prizes-head">
+            <div class="eyebrow">Premios de la noche</div>
+            <span class="chip chip-gold" id="prizes-progress">0/0</span>
+          </div>
+          <ul class="prize-list" id="prize-list"></ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="overlay" id="winner-overlay" role="dialog" aria-modal="true" aria-labelledby="winner-name">
+      <div class="winner-card">
+        <div class="eyebrow">¡Tenemos ganador!</div>
+        <div class="winner-prize" id="winner-prize"></div>
+        <div class="winner-number" id="winner-number"></div>
+        <div class="winner-name" id="winner-name"></div>
+        <div class="winner-area" id="winner-area"></div>
+        <div class="winner-actions">
+          <button class="btn btn-gold" id="winner-confirm">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg>
+            Confirmar entrega
+          </button>
+          <button class="btn btn-ghost" id="winner-absent">No está · girar de nuevo</button>
+        </div>
+      </div>
+    </div>
+    <canvas id="confetti" hidden></canvas>
+  </section>
+
+  <!-- =================== CHECK-IN (CELULAR) =================== -->
+  <section class="view" id="view-checkin" aria-labelledby="tab-checkin">
+    <div class="checkin-layout">
+      <div class="phone">
+        <div class="phone-notch" aria-hidden="true"></div>
+        <div class="phone-screen">
+          <div class="phone-status" aria-hidden="true"><span id="phone-clock">21:00</span><span>5G ▮▮▮</span></div>
+          <div class="phone-body">
+            <img src="assets/logo-addiuva-blanco.png" alt="Addiuva" class="m-logo logo-img" />
+
+            <!-- Paso 1: identificación -->
+            <div class="m-step active" id="m-step-1">
+              <h2>¡Bienvenido a la fiesta! 🎉</h2>
+              <p class="lead">Registrá tu llegada para participar en la ruleta de premios.</p>
+              <form class="m-form" id="m-form" autocomplete="off" novalidate>
+                <div class="field">
+                  <label for="m-legajo">Nº de legajo</label>
+                  <input class="input" id="m-legajo" inputmode="numeric" placeholder="Ej: 1042" maxlength="6" />
+                </div>
+                <div class="field">
+                  <label for="m-pin">PIN del evento <span style="color:var(--muted)">· está en la pantalla del salón</span></label>
+                  <input class="input pin-input" id="m-pin" inputmode="numeric" placeholder="••••" maxlength="4" />
+                </div>
+                <div class="m-error" id="m-error" role="alert"></div>
+                <button class="btn btn-primary" type="submit" id="m-submit">Continuar</button>
+              </form>
+              <p class="m-foot">Un registro por persona. Tu número es único y no se puede duplicar.</p>
+            </div>
+
+            <!-- Paso 2: confirmación de identidad -->
+            <div class="m-step" id="m-step-2">
+              <h2>¿Sos vos?</h2>
+              <p class="lead">Confirmá tus datos antes de registrarte.</p>
+              <div class="who-card">
+                <div class="avatar" id="m-avatar">JP</div>
+                <div class="n" id="m-who-name"></div>
+                <div class="a" id="m-who-area"></div>
+              </div>
+              <div class="m-form">
+                <button class="btn btn-primary" id="m-confirm">Sí, soy yo · Registrarme</button>
+                <button class="btn btn-ghost" id="m-back">No, volver</button>
+              </div>
+            </div>
+
+            <!-- Paso 3: ticket -->
+            <div class="m-step" id="m-step-3">
+              <div class="ticket">
+                <div class="t-label">Tu número de la suerte</div>
+                <div class="t-num" id="m-ticket-num">#000</div>
+                <div class="t-sep"></div>
+                <div class="t-name" id="m-ticket-name"></div>
+                <div class="t-meta" id="m-ticket-meta"></div>
+              </div>
+              <div class="notice" id="m-ticket-notice"></div>
+              <div class="m-foot">
+                <button class="btn btn-ghost btn-sm" id="m-reset">Registrar a otra persona (demo)</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="checkin-explain">
+        <div class="eyebrow">Vista del colaborador</div>
+        <h1>Check-in con QR, sin instalar nada</h1>
+        <p class="lead">Cada persona escanea el QR con la cámara de su celular, se abre esta web y registra su llegada. Al instante aparece en la ruleta de la pantalla gigante.</p>
+        <ul class="steps">
+          <li><span class="n">1</span><div><b>Legajo + PIN del salón</b><span>El PIN solo se ve en la pantalla del evento: si alguien comparte el link por WhatsApp, quien no está en la fiesta no puede registrarse.</span></div></li>
+          <li><span class="n">2</span><div><b>Confirmación “¿Sos vos?”</b><span>Evita que alguien se equivoque de legajo y registre a otra persona.</span></div></li>
+          <li><span class="n">3</span><div><b>Un número por persona</b><span>Si vuelve a intentarlo, ve su mismo número. Nunca entra dos veces a la ruleta.</span></div></li>
+        </ul>
+        <div class="card demo-box">
+          <div class="eyebrow">Probalo · datos de demo</div>
+          <p>PIN actual: <strong id="demo-pin" style="color:var(--gold)">2026</strong> · Legajos válidos: 1001 a 1100. Tocá uno para autocompletar:</p>
+          <div class="demo-legajos" id="demo-legajos"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =================== RECEPCIÓN / ADMIN =================== -->
+  <section class="view" id="view-admin" aria-labelledby="tab-admin">
+    <div class="admin">
+      <div class="admin-head">
+        <div>
+          <div class="eyebrow">Recepción · tablet o laptop</div>
+          <h1>Control del sorteo</h1>
+          <p>Check-in manual para quien no tenga celular, premios y configuración.</p>
+        </div>
+        <div class="row" style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-ghost btn-sm" id="sim-10">Simular 10 llegadas</button>
+          <button class="btn btn-ghost btn-sm" id="sim-all">Simular todos</button>
+          <button class="btn btn-ghost btn-sm" id="export-csv">Exportar CSV</button>
+        </div>
+      </div>
+
+      <div class="stats">
+        <div class="card stat accent"><div class="eyebrow">Presentes</div><div class="v" id="st-present">0</div><div class="s" id="st-present-pct">0% de la lista</div></div>
+        <div class="card stat"><div class="eyebrow">En la ruleta</div><div class="v" id="st-wheel">0</div><div class="s">Presentes sin premio</div></div>
+        <div class="card stat"><div class="eyebrow">Premios entregados</div><div class="v" id="st-prizes">0/0</div><div class="s" id="st-prizes-left">0 por sortear</div></div>
+        <div class="card stat"><div class="eyebrow">Intentos duplicados</div><div class="v" id="st-dupes">0</div><div class="s">Bloqueados automáticamente</div></div>
+      </div>
+
+      <div class="card table-card">
+        <div class="table-tools">
+          <input class="input" id="search" type="search" placeholder="Buscar por nombre, legajo o número…" />
+          <div class="seg" role="group" aria-label="Filtrar">
+            <button class="on" data-filter="all">Todos</button>
+            <button data-filter="present">Presentes</button>
+            <button data-filter="absent">Sin llegar</button>
+            <button data-filter="winners">Ganadores</button>
+          </div>
+          <span class="spacer"></span>
+          <span class="help" id="table-count"></span>
+        </div>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Nº</th><th class="leg">Legajo</th><th>Colaborador</th><th>Estado</th><th></th></tr></thead>
+            <tbody id="emp-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <aside class="side">
+        <div class="card panel">
+          <h3>Configuración</h3>
+          <div class="stack">
+            <div class="field">
+              <label for="cfg-pin">PIN del evento (4 dígitos)</label>
+              <div class="row"><input class="input" id="cfg-pin" maxlength="4" inputmode="numeric" /><button class="btn btn-ghost btn-sm" id="cfg-pin-random">Nuevo</button></div>
+            </div>
+            <label class="switch"><span>Quitar ganadores de la ruleta<small>Nadie gana dos premios</small></span><input type="checkbox" id="cfg-remove" /></label>
+            <label class="switch"><span>Mostrar nombres en la ruleta<small>Si hay ≤ 60 personas; si no, solo números</small></span><input type="checkbox" id="cfg-names" /></label>
+            <label class="switch"><span>Sonido<small>Tic-tic y fanfarria</small></span><input type="checkbox" id="cfg-sound" /></label>
+          </div>
+        </div>
+
+        <div class="card panel">
+          <h3>Premios <span class="help" id="prize-count"></span></h3>
+          <ul class="prize-edit" id="prize-edit"></ul>
+          <form class="row" id="prize-form">
+            <input class="input" id="prize-new" placeholder="Nuevo premio…" />
+            <button class="btn btn-primary btn-sm" type="submit">Agregar</button>
+          </form>
+        </div>
+
+        <div class="card panel">
+          <h3>Lista de colaboradores</h3>
+          <div class="stack">
+            <p class="help">Pegá desde Excel: <code>legajo, nombre, área</code> (una persona por línea). Reemplaza la lista de demo.</p>
+            <textarea class="input" id="import-text" placeholder="1001, Ana Torres, Operaciones&#10;1002, Luis Gómez, Tecnología"></textarea>
+            <div class="row">
+              <button class="btn btn-primary btn-sm" id="import-btn">Importar lista</button>
+              <button class="btn btn-danger btn-sm" id="reset-btn">Reiniciar demo</button>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </section>
+  </main>
+
+  <div class="toast-wrap" id="toasts" aria-live="polite"></div>
+
+  <script src="vendor/qrcode.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
