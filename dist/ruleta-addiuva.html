@@ -104,6 +104,10 @@ body.hdmi-clean #topbar {
 }
 body.hdmi-clean .stage {
   height: 100vh !important;
+  padding: clamp(16px, 2vh, 36px) clamp(20px, 2.2vw, 48px);
+}
+body.hdmi-clean .wheel-wrap {
+  width: min(100%, calc(100vh - clamp(160px, 19vh, 270px)), 1840px);
 }
 
 button, input, select, textarea { font: inherit; color: inherit; }
@@ -538,55 +542,58 @@ body:not(.kiosk-locked) .top-actions { margin-left: 0; }
 /* ---------- VISTA 2: PANTALLA GIGANTE / RULETA ---------- */
 .stage {
   display: grid;
-  grid-template-columns: 280px minmax(0, 1fr) 310px;
-  gap: 18px;
-  padding: 16px 22px;
+  grid-template-columns: clamp(270px, 19vw, 660px) minmax(0, 1fr) clamp(290px, 21vw, 720px);
+  gap: clamp(14px, 1.4vw, 44px);
+  padding: clamp(12px, 1.4vh, 32px) clamp(16px, 1.8vw, 48px);
   height: 100%;
   min-height: 0;
   align-items: stretch;
   overflow: hidden;
 }
-.stage-col { display: flex; flex-direction: column; gap: 14px; min-width: 0; min-height: 0; }
+.stage-col { display: flex; flex-direction: column; gap: clamp(10px, 1.4vh, 28px); min-width: 0; min-height: 0; }
 
-.counter-card { padding: 16px 18px; }
+.counter-card { padding: clamp(14px, 1.5vh, 32px) clamp(16px, 1.4vw, 32px); }
 .counter-row { display: flex; align-items: baseline; gap: 8px; margin: 4px 0 10px; }
-.counter-big { font-size: 42px; font-weight: 800; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; line-height: 1; color: var(--gold); }
-.counter-total { color: var(--muted); font-size: 14px; }
-.progress { height: 8px; border-radius: 999px; background: rgba(255,255,255,0.08); overflow: hidden; }
+.counter-big { font-size: clamp(38px, 3vw, 96px); font-weight: 800; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; line-height: 1; color: var(--gold); }
+.counter-total { color: var(--muted); font-size: clamp(13px, 1vw, 28px); }
+.progress { height: clamp(8px, 0.7vh, 14px); border-radius: 999px; background: rgba(255,255,255,0.08); overflow: hidden; }
 .progress > div { height: 100%; width: 0; background: var(--grad); border-radius: inherit; transition: width .5s cubic-bezier(.2,.8,.2,1); }
 .stage-mode-switch { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
 
-.feed-card { padding: 16px 18px; flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
-.feed { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; overflow: auto; }
-.feed li { display: flex; align-items: center; gap: 10px; font-size: 13.5px; animation: slideIn .35s ease; }
-.feed .num { font-weight: 800; font-variant-numeric: tabular-nums; color: var(--gold); min-width: 44px; }
+.feed-card { padding: clamp(14px, 1.5vh, 30px) clamp(16px, 1.4vw, 30px); flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+.feed { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: clamp(6px, 0.8vh, 18px); overflow: auto; }
+.feed li { display: flex; align-items: center; gap: 10px; font-size: clamp(13px, 0.95vw, 30px); animation: slideIn .35s ease; }
+.feed .num { font-weight: 800; font-variant-numeric: tabular-nums; color: var(--gold); min-width: clamp(42px, 3.2vw, 100px); }
 .feed .who { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
-.feed time { color: var(--muted); font-size: 12px; }
+.feed time { color: var(--muted); font-size: 0.86em; }
 .feed-empty { color: var(--muted); font-size: 13.5px; margin-top: 12px; }
 @keyframes slideIn { from { opacity: 0; transform: translateX(-8px); } to { opacity: 1; transform: none; } }
 
-.wheel-col { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; min-width: 0; min-height: 0; }
+.wheel-col { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: clamp(14px, 1.8vh, 36px); min-width: 0; min-height: 0; }
 .prize-banner {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 7px 10px 7px 18px;
+  gap: clamp(10px, 1vw, 28px);
+  padding: clamp(6px, 0.7vh, 16px) clamp(10px, 0.9vw, 24px) clamp(6px, 0.7vh, 16px) clamp(16px, 1.4vw, 38px);
   border-radius: 999px;
   background: rgba(0,0,0,0.28);
   border: 1px solid var(--line);
   max-width: 100%;
   flex-shrink: 0;
+  position: relative;
+  z-index: 4;
 }
-.prize-banner .label { font-size: 11px; text-transform: uppercase; letter-spacing: .14em; color: var(--muted); white-space: nowrap; }
-.prize-banner .name { font-size: 19px; font-weight: 800; color: var(--gold); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.prize-nav { display: flex; gap: 4px; }
-.icon-btn { width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface); display: grid; place-items: center; }
+.prize-banner .label { font-size: clamp(10.5px, 0.8vw, 22px); text-transform: uppercase; letter-spacing: .14em; color: var(--muted); white-space: nowrap; }
+.prize-banner .name { font-size: clamp(17px, 1.35vw, 44px); font-weight: 800; color: var(--gold); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.prize-nav { display: flex; gap: 6px; }
+.icon-btn { width: clamp(32px, 2.3vw, 64px); height: clamp(32px, 2.3vw, 64px); border-radius: 50%; border: 1px solid var(--line); background: var(--surface); display: grid; place-items: center; }
 .icon-btn:hover { background: var(--surface-strong); }
-.icon-btn svg { width: 16px; height: 16px; }
+.icon-btn svg { width: 48%; height: 48%; }
 
 .wheel-wrap {
   position: relative;
-  width: min(100%, calc(100vh - 235px), 680px);
+  width: min(100%, calc(100vh - clamp(220px, 23vh, 360px)), 1760px);
+  margin-top: clamp(10px, 1.5vh, 36px);
   min-width: 260px;
   aspect-ratio: 1;
   flex-shrink: 0;
@@ -612,9 +619,9 @@ body:not(.kiosk-locked) .top-actions { margin-left: 0; }
 .wheel-ring canvas { width: 100%; height: 100%; display: block; border-radius: 50%; }
 .wheel-pointer {
   position: absolute;
-  top: -3.5%;
+  top: -2.2%;
   left: 50%;
-  width: 9%;
+  width: 7.4%;
   transform: translateX(-50%);
   z-index: 3;
   filter: drop-shadow(0 6px 10px rgba(0,0,0,0.5));
@@ -639,32 +646,32 @@ body:not(.kiosk-locked) .top-actions { margin-left: 0; }
   transition: transform .2s ease;
 }
 .wheel-hub:hover:not(:disabled) { transform: translate(-50%, -50%) scale(1.05); }
-.wheel-hub .hub-inner { display: flex; flex-direction: column; align-items: center; gap: 3px; }
-.wheel-hub img { width: 70%; max-width: 110px; height: auto; }
-.wheel-hub .hub-cta { font-size: clamp(11px, 1.3vw, 17px); font-weight: 800; letter-spacing: 0.22em; color: var(--gold); }
+.wheel-hub .hub-inner { display: flex; flex-direction: column; align-items: center; gap: 3px; width: 100%; }
+.wheel-hub img { width: 66%; max-width: none; height: auto; }
+.wheel-hub .hub-cta { font-size: clamp(11px, 1.25vw, 44px); font-weight: 800; letter-spacing: 0.22em; color: var(--gold); }
 .wheel-empty { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; z-index: 1; pointer-events: none; }
-.wheel-empty div { max-width: 55%; padding-top: 34%; color: var(--ink-soft); font-size: 14px; }
-.spin-hint { font-size: 12px; color: var(--muted); display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
-kbd { font-family: inherit; font-size: 11px; padding: 2px 7px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--ink-soft); }
+.wheel-empty div { max-width: 55%; padding-top: 34%; color: var(--ink-soft); font-size: clamp(13px, 1vw, 28px); }
+.spin-hint { font-size: clamp(12px, 0.9vw, 24px); color: var(--muted); display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
+kbd { font-family: inherit; font-size: 0.92em; padding: 2px 7px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--ink-soft); }
 
-.prizes-card { padding: 14px 16px; flex: 1; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.prizes-card { padding: clamp(12px, 1.4vh, 30px) clamp(14px, 1.3vw, 30px); flex: 1; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
 .prizes-head { display: flex; justify-content: space-between; align-items: baseline; flex-shrink: 0; }
-.prize-list { list-style: none; margin: 10px 0 0; padding: 0 4px 0 0; display: flex; flex-direction: column; gap: 6px; overflow: auto; flex: 1; min-height: 0; }
+.prize-list { list-style: none; margin: 10px 0 0; padding: 0 4px 0 0; display: flex; flex-direction: column; gap: clamp(5px, 0.7vh, 18px); overflow: auto; flex: 1; min-height: 0; }
 .prize-item {
   display: grid;
-  grid-template-columns: 28px 1fr;
-  gap: 2px 10px;
+  grid-template-columns: clamp(26px, 2vw, 56px) 1fr;
+  gap: 2px clamp(8px, 0.8vw, 20px);
   align-items: center;
-  padding: 8px 10px;
-  border-radius: 11px;
+  padding: clamp(7px, 0.8vh, 22px) clamp(9px, 0.9vw, 22px);
+  border-radius: 13px;
   background: rgba(255,255,255,0.03);
   border: 1px solid transparent;
   cursor: pointer;
 }
 .prize-item:hover { background: rgba(255,255,255,0.06); }
-.prize-item .idx { grid-row: span 2; width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; font-size: 12.5px; font-weight: 700; background: rgba(255,255,255,0.08); color: var(--ink-soft); }
-.prize-item .pname { font-weight: 600; font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.prize-item .pwinner { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.prize-item .idx { grid-row: span 2; width: clamp(26px, 2vw, 56px); height: clamp(26px, 2vw, 56px); border-radius: 10px; display: grid; place-items: center; font-size: clamp(12px, 0.9vw, 26px); font-weight: 700; background: rgba(255,255,255,0.08); color: var(--ink-soft); }
+.prize-item .pname { font-weight: 600; font-size: clamp(13px, 0.95vw, 30px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.prize-item .pwinner { font-size: clamp(11.5px, 0.82vw, 24px); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .prize-item.current { background: rgba(255, 204, 110, 0.1); border-color: rgba(255, 204, 110, 0.38); }
 .prize-item.current .idx { background: var(--gold); color: #1E1041; }
 .prize-item.done .idx { background: var(--grad-short); color: #fff; }
@@ -683,8 +690,8 @@ kbd { font-family: inherit; font-size: 11px; padding: 2px 7px; border-radius: 6p
 .winner-card {
   position: relative;
   z-index: 62;
-  width: min(92vw, 640px);
-  padding: 40px 40px 32px;
+  width: min(92vw, clamp(580px, 42vw, 1080px));
+  padding: clamp(32px, 3.4vh, 64px) clamp(32px, 3vw, 64px) clamp(28px, 3vh, 52px);
   border-radius: 28px;
   text-align: center;
   background:
@@ -693,9 +700,9 @@ kbd { font-family: inherit; font-size: 11px; padding: 2px 7px; border-radius: 6p
   border: 1.5px solid rgba(255, 204, 110, 0.45);
   box-shadow: 0 40px 120px -30px rgba(0,0,0,0.95);
 }
-.winner-prize { font-size: 20px; font-weight: 600; margin-top: 6px; color: var(--ink-soft); }
+.winner-prize { font-size: clamp(19px, 1.5vw, 34px); font-weight: 600; margin-top: 6px; color: var(--ink-soft); }
 .winner-number {
-  font-size: clamp(76px, 13vw, 144px);
+  font-size: clamp(76px, 12vw, 220px);
   font-weight: 900;
   letter-spacing: -0.04em;
   line-height: 1;
@@ -704,8 +711,8 @@ kbd { font-family: inherit; font-size: 11px; padding: 2px 7px; border-radius: 6p
   text-shadow: 0 10px 40px rgba(255, 204, 110, 0.35);
   font-variant-numeric: tabular-nums;
 }
-.winner-name { font-size: clamp(26px, 3.8vw, 38px); font-weight: 800; }
-.winner-area { color: var(--muted); margin-top: 6px; font-size: 16px; }
+.winner-name { font-size: clamp(26px, 3.4vw, 68px); font-weight: 800; }
+.winner-area { color: var(--muted); margin-top: 6px; font-size: clamp(15px, 1.25vw, 26px); }
 .winner-actions { display: flex; gap: 12px; justify-content: center; margin-top: 26px; flex-wrap: wrap; }
 
 /* Modal Contraseña Admin */
@@ -788,15 +795,32 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
   .numpad-grid button, .alpha-row button { min-height: 40px; font-size: 16px; }
   .osk-next-btn { min-height: 40px; }
   .btn-xl { min-height: 48px; font-size: 15.5px; padding: 10px 20px; }
-  .stage { padding: 12px 18px; gap: 14px; }
-  .wheel-col { gap: 10px; }
-  .wheel-wrap { width: min(100%, calc(100vh - 225px), 640px); }
+  .stage { padding: 10px 16px; gap: 14px; }
+  .wheel-col { gap: 14px; }
+  .wheel-wrap { width: min(100%, calc(100vh - 238px), 600px); margin-top: 8px; }
   .prizes-card { padding: 12px 14px; }
   .prize-list { gap: 4px; margin-top: 8px; }
   .prize-item { padding: 5px 8px; gap: 1px 8px; }
   .prize-item .idx { width: 24px; height: 24px; font-size: 11.5px; }
   .prize-item .pname { font-size: 12.5px; }
   .prize-item .pwinner { font-size: 11px; }
+}
+@media (min-height: 950px) {
+  .kiosk-main { padding: 32px 42px; }
+  .k-step { gap: 18px; }
+  .k-header h1 { font-size: 36px; }
+  .k-sub { font-size: 16px; }
+  .osk { padding: 16px 18px; }
+  .osk-num { max-width: 560px; }
+  .numpad-grid button, .alpha-row button { min-height: 58px; font-size: 22px; }
+  .osk-next-btn { min-height: 52px; font-size: 16px; margin-top: 10px; }
+}
+/* TV o proyector 4K */
+@media (min-width: 2400px) and (min-height: 1300px) {
+  .eyebrow { font-size: 17px; }
+  .switch span { font-size: 18px; }
+  .chip { font-size: 16px; padding: 6px 14px; }
+  .winner-actions .btn-lg { min-height: 68px; padding: 18px 34px; font-size: 22px; }
 }
 @media (max-width: 1340px) {
   .topbar { gap: 10px; padding: 9px 14px; }
@@ -1353,6 +1377,8 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
 
   let state = loadLocal();
 
+  let lastStateJson = JSON.stringify(state);
+
   async function syncFromServer() {
     if (!/^https?:$/.test(location.protocol)) return;
     try {
@@ -1361,9 +1387,13 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
       const remote = await res.json();
       if (remote && Array.isArray(remote.employees)) {
         hasNativeServer = true;
-        state = remote;
-        try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (_) {}
-        renderAll();
+        const remoteJson = JSON.stringify(remote);
+        if (remoteJson !== lastStateJson && !wheel.spinning && !overlayOpen) {
+          lastStateJson = remoteJson;
+          state = remote;
+          try { localStorage.setItem(KEY, remoteJson); } catch (_) {}
+          renderAll();
+        }
       }
     } catch (_) {
       // Ejecutando 100% en navegador sin el .exe
@@ -1371,13 +1401,15 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
   }
 
   function save() {
-    try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (_) { /* ignore */ }
+    const json = JSON.stringify(state);
+    lastStateJson = json;
+    try { localStorage.setItem(KEY, json); } catch (_) { /* ignore */ }
     if (channel) channel.postMessage('sync');
     if (hasNativeServer) {
       fetch('/api/state', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(state)
+        body: json
       }).catch(() => {});
     }
     renderAll();
@@ -1385,6 +1417,7 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
 
   function onExternalChange() {
     state = loadLocal();
+    lastStateJson = JSON.stringify(state);
     renderAll();
   }
   window.addEventListener('storage', (e) => { if (e.key === KEY) onExternalChange(); });
@@ -1408,11 +1441,14 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
   /* ---------------- Bloqueo de atajos de salida en modo Kiosco ---------------- */
   let kioskLocked = true;
   document.addEventListener('contextmenu', (e) => {
-    if (kioskLocked) e.preventDefault();
+    if (kioskLocked && !document.body.classList.contains('hdmi-clean')) e.preventDefault();
   });
   document.addEventListener('keydown', (e) => {
     const k = e.key;
-    // Bloquear F11, F5, F12, Ctrl+R, Ctrl+W, Ctrl+Shift+I, Alt+F4 (cuando el navegador lo permite)
+    const isHdmi = document.body.classList.contains('hdmi-clean');
+    // En la ventana HDMI (proyector/TV) o modo desbloqueado se permite F11 para pantalla completa
+    if (k === 'F11' && (!kioskLocked || isHdmi)) return;
+    // Bloquear F11 (cuando está bloqueado), F5, F12, Ctrl+R, Ctrl+W, Ctrl+Shift+I, Alt+F4
     if (k === 'F11' || k === 'F5' || k === 'F12' ||
         (e.ctrlKey && ['r', 'R', 'w', 'W', 'u', 'U', 'p', 'P'].includes(k)) ||
         (e.ctrlKey && e.shiftKey && ['i', 'I', 'j', 'J', 'c', 'C'].includes(k)) ||
@@ -2304,6 +2340,12 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
   $$('.tab').forEach((t) => t.addEventListener('click', () => setView(t.dataset.view)));
   $('#go-ruleta-btn').addEventListener('click', () => setView('pantalla'));
   window.addEventListener('resize', sizeWheel);
+  if ('ResizeObserver' in window) {
+    new ResizeObserver(() => sizeWheel()).observe($('#wheel-wrap'));
+  }
+  setInterval(() => {
+    if (hasNativeServer) syncFromServer();
+  }, 1500);
 
   /* ---------------- Eventos de la Ruleta ---------------- */
   $('#spin-btn').addEventListener('click', spin);

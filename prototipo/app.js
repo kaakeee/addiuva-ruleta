@@ -103,6 +103,8 @@
 
   let state = loadLocal();
 
+  let lastStateJson = JSON.stringify(state);
+
   async function syncFromServer() {
     if (!/^https?:$/.test(location.protocol)) return;
     try {
@@ -111,9 +113,13 @@
       const remote = await res.json();
       if (remote && Array.isArray(remote.employees)) {
         hasNativeServer = true;
-        state = remote;
-        try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (_) {}
-        renderAll();
+        const remoteJson = JSON.stringify(remote);
+        if (remoteJson !== lastStateJson && !wheel.spinning && !overlayOpen) {
+          lastStateJson = remoteJson;
+          state = remote;
+          try { localStorage.setItem(KEY, remoteJson); } catch (_) {}
+          renderAll();
+        }
       }
     } catch (_) {
       // Ejecutando 100% en navegador sin el .exe
@@ -121,13 +127,15 @@
   }
 
   function save() {
-    try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (_) { /* ignore */ }
+    const json = JSON.stringify(state);
+    lastStateJson = json;
+    try { localStorage.setItem(KEY, json); } catch (_) { /* ignore */ }
     if (channel) channel.postMessage('sync');
     if (hasNativeServer) {
       fetch('/api/state', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(state)
+        body: json
       }).catch(() => {});
     }
     renderAll();
@@ -135,6 +143,7 @@
 
   function onExternalChange() {
     state = loadLocal();
+    lastStateJson = JSON.stringify(state);
     renderAll();
   }
   window.addEventListener('storage', (e) => { if (e.key === KEY) onExternalChange(); });
@@ -158,11 +167,14 @@
   /* ---------------- Bloqueo de atajos de salida en modo Kiosco ---------------- */
   let kioskLocked = true;
   document.addEventListener('contextmenu', (e) => {
-    if (kioskLocked) e.preventDefault();
+    if (kioskLocked && !document.body.classList.contains('hdmi-clean')) e.preventDefault();
   });
   document.addEventListener('keydown', (e) => {
     const k = e.key;
-    // Bloquear F11, F5, F12, Ctrl+R, Ctrl+W, Ctrl+Shift+I, Alt+F4 (cuando el navegador lo permite)
+    const isHdmi = document.body.classList.contains('hdmi-clean');
+    // En la ventana HDMI (proyector/TV) o modo desbloqueado se permite F11 para pantalla completa
+    if (k === 'F11' && (!kioskLocked || isHdmi)) return;
+    // Bloquear F11 (cuando está bloqueado), F5, F12, Ctrl+R, Ctrl+W, Ctrl+Shift+I, Alt+F4
     if (k === 'F11' || k === 'F5' || k === 'F12' ||
         (e.ctrlKey && ['r', 'R', 'w', 'W', 'u', 'U', 'p', 'P'].includes(k)) ||
         (e.ctrlKey && e.shiftKey && ['i', 'I', 'j', 'J', 'c', 'C'].includes(k)) ||
@@ -1054,6 +1066,12 @@
   $$('.tab').forEach((t) => t.addEventListener('click', () => setView(t.dataset.view)));
   $('#go-ruleta-btn').addEventListener('click', () => setView('pantalla'));
   window.addEventListener('resize', sizeWheel);
+  if ('ResizeObserver' in window) {
+    new ResizeObserver(() => sizeWheel()).observe($('#wheel-wrap'));
+  }
+  setInterval(() => {
+    if (hasNativeServer) syncFromServer();
+  }, 1500);
 
   /* ---------------- Eventos de la Ruleta ---------------- */
   $('#spin-btn').addEventListener('click', spin);
