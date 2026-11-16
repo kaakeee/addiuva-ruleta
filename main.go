@@ -203,6 +203,24 @@ func (s *shellController) restoreIfClosed() {
 	s.restoreUnlocked()
 }
 
+// ensureRestoredOnExit garantiza que explorer.exe vuelva a estar activo al cerrar la app
+// tanto si closedByApp quedó marcado como si el shell terminó cerrándose después de un timeout.
+func (s *shellController) ensureRestoredOnExit() {
+	if s == nil || !s.supported {
+		return
+	}
+	s.opMu.Lock()
+	defer s.opMu.Unlock()
+	s.mu.Lock()
+	wasClosed := s.closedByApp
+	s.mu.Unlock()
+	running := s.isExplorerRunning != nil && s.isExplorerRunning()
+	if !wasClosed && running {
+		return
+	}
+	s.restoreUnlocked()
+}
+
 var (
 	mu               sync.Mutex
 	currentState     AppState
@@ -910,7 +928,7 @@ func main() {
 	loadStateFromDisk()
 
 	shellCtrl := newDefaultShellController()
-	defer shellCtrl.restoreIfClosed()
+	defer shellCtrl.ensureRestoredOnExit()
 
 	// Mantener la PC y pantalla de Windows siempre encendidas
 	go keepSystemAwake(wakeStop)
@@ -932,7 +950,8 @@ func main() {
 	mux := buildHTTPMuxWithShell(subFS, profileDir, shellCtrl, func(kmd *exec.Cmd) {
 		time.Sleep(80 * time.Millisecond)
 		closeAppWindows(kmd, profileDir)
-		shellCtrl.restoreIfClosed()
+		shellCtrl.ensureRestoredOnExit()
+		time.Sleep(100 * time.Millisecond)
 		wakeStopOnce.Do(func() { close(wakeStop) })
 		exitDoneOnce.Do(func() { close(exitDone) })
 		os.Exit(0)
@@ -977,14 +996,13 @@ func main() {
 				mu.Lock()
 				quitNow := authorizedQuit
 				mu.Unlock()
-				if quitNow && st.ClosedByApp {
-					shellCtrl.restoreIfClosed()
+				if quitNow && (st.ClosedByApp || !st.ExplorerRunning) {
+					shellCtrl.ensureRestoredOnExit()
 				}
 			})
 		},
 		onFallbackMode: func() {
-			shellCtrl.restoreIfClosed()
+			shellCtrl.ensureRestoredOnExit()
 		},
 	})
 }
-

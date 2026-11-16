@@ -833,3 +833,96 @@ func TestBuildBrowserLaunchArgsAndEmbeddedHTML(t *testing.T) {
 	}
 }
 
+func TestEnsureRestoredOnExitGuaranteesDesktopShell(t *testing.T) {
+	// 1. Cuando closedByApp=false y Explorer sigue corriendo -> no-op
+	{
+		var restoreCalls atomic.Int32
+		ctrl := &shellController{
+			supported:         true,
+			isExplorerRunning: func() bool { return true },
+			restoreExplorer: func() bool {
+				restoreCalls.Add(1)
+				return true
+			},
+		}
+		ctrl.ensureRestoredOnExit()
+		if restoreCalls.Load() != 0 {
+			t.Fatalf("expected ensureRestoredOnExit to be a no-op when explorer is running and closedByApp=false, got %d calls", restoreCalls.Load())
+		}
+	}
+
+	// 2. Si suspend() agotó tiempo antes de que Explorer terminara de cerrarse (closedByApp=false),
+	// y Explorer desaparece después -> ensureRestoredOnExit igual debe restaurarlo.
+	{
+		var running atomic.Bool
+		running.Store(true)
+		var restoreCalls atomic.Int32
+
+		ctrl := &shellController{
+			supported:         true,
+			isExplorerRunning: func() bool { return running.Load() },
+			suspendExplorer: func() bool {
+				// Simula timeout: sigue vivo al terminar suspend(), y muere 10ms después
+				go func() {
+					time.Sleep(10 * time.Millisecond)
+					running.Store(false)
+				}()
+				return false
+			},
+			restoreExplorer: func() bool {
+				restoreCalls.Add(1)
+				running.Store(true)
+				return true
+			},
+		}
+
+		st := ctrl.suspend(true)
+		if st.ClosedByApp {
+			t.Fatalf("expected closedByApp=false while suspend timed out and shell appeared alive, got %+v", st)
+		}
+		time.Sleep(25 * time.Millisecond) // Explorer terminó de salir más tarde
+		if running.Load() {
+			t.Fatalf("expected simulated explorer to finish exiting")
+		}
+
+		ctrl.ensureRestoredOnExit()
+		if !running.Load() || restoreCalls.Load() != 1 || ctrl.status(true).ClosedByApp {
+			t.Fatalf("expected ensureRestoredOnExit to restore explorer even when closedByApp=false; running=%v calls=%d status=%+v",
+				running.Load(), restoreCalls.Load(), ctrl.status(true))
+		}
+	}
+
+	// 3. Concurrencia: suspend lento en curso mientras ensureRestoredOnExit se ejecuta
+	{
+		var running atomic.Bool
+		running.Store(true)
+		var restoreCalls atomic.Int32
+
+		ctrl := &shellController{
+			supported:         true,
+			isExplorerRunning: func() bool { return running.Load() },
+			suspendExplorer: func() bool {
+				time.Sleep(25 * time.Millisecond)
+				running.Store(false)
+				return true
+			},
+			restoreExplorer: func() bool {
+				restoreCalls.Add(1)
+				running.Store(true)
+				return true
+			},
+		}
+
+		doneSuspend := make(chan struct{})
+		go func() {
+			ctrl.suspend(true)
+			close(doneSuspend)
+		}()
+		time.Sleep(5 * time.Millisecond)
+		ctrl.ensureRestoredOnExit()
+		<-doneSuspend
+		if !running.Load() || restoreCalls.Load() != 1 || ctrl.status(true).ClosedByApp {
+			t.Fatalf("expected ensureRestoredOnExit serialized after in-flight suspend to leave Explorer running")
+		}
+	}
+}

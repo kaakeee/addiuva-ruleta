@@ -43,4 +43,3 @@ func closeAppWindows(kmd *exec.Cmd, profileDir string) {
 func launchKioskBrowser(mode launchMode, url string, profileDir string) *exec.Cmd {
 	return nil
 }
-
