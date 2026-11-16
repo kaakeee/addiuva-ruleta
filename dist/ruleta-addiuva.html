@@ -954,6 +954,34 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
 .x-btn { border: 0; background: transparent; color: var(--muted); width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; }
 .x-btn:hover { background: rgba(255,107,129,0.15); color: #FFB3BF; }
 .help { color: var(--muted); font-size: 12px; }
+.shell-box {
+  padding: 12px 14px;
+  border-radius: 13px;
+  background: rgba(8, 3, 22, 0.45);
+  border: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.shell-box .switch input:disabled { opacity: 0.45; cursor: not-allowed; }
+.shell-box .switch:has(input:disabled) { cursor: default; opacity: 0.85; }
+.shell-status-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+.shell-status-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.shell-status-label { font-size: 12px; color: var(--ink-soft); font-weight: 600; }
+.shell-toggle-btn { width: 100%; justify-content: center; }
+.shell-standalone-note { margin: 0; font-size: 11.5px; color: var(--muted); }
 .kbd-box {
   margin-top: 6px;
   padding: 12px 14px;
@@ -1388,6 +1416,22 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
               <label class="switch"><span>Mostrar nombres en la ruleta<small>Si se apaga (Modo Números), el nombre ganador queda oculto hasta descubrirlo</small></span><input type="checkbox" id="cfg-names" /></label>
               <label class="switch"><span>Validar contra padrón pre-cargado<small>Solo permite DNIs que estén en la lista importada</small></span><input type="checkbox" id="cfg-roster-only" /></label>
               <label class="switch"><span>Sonidos de giro y celebración<small>Efectos de púa y fanfarria</small></span><input type="checkbox" id="cfg-sound" /></label>
+              <div class="shell-box" id="win-shell-box">
+                <label class="switch" for="cfg-lock-explorer">
+                  <span>Cerrar escritorio Windows (explorer.exe)<small>Oculta barra, Inicio y gestos mientras la App esté abierta; se restaura al tocar Salir</small></span>
+                  <input type="checkbox" id="cfg-lock-explorer" />
+                </label>
+                <div class="shell-status-row" id="shell-status-row" hidden>
+                  <div class="shell-status-head">
+                    <span class="shell-status-label">Estado Windows:</span>
+                    <span class="chip chip-muted" id="shell-status-chip">Escritorio activo</span>
+                  </div>
+                  <button type="button" class="btn btn-ghost btn-sm shell-toggle-btn" id="shell-toggle-btn">Restaurar escritorio ahora</button>
+                </div>
+                <p class="help shell-standalone-note" id="shell-standalone-note" hidden>
+                  Disponible al ejecutar <code>AddiuvaRuleta.exe</code> en Windows.
+                </p>
+              </div>
               <div class="kbd-box" aria-label="Atajos de teclado para usar sin pantalla táctil">
                 <div class="kbd-box-title">⌨️ Control total solo con teclado (Bluetooth)</div>
                 <div class="kbd-grid">
@@ -1501,7 +1545,8 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
         removeWinners: true,
         showNames: true,
         rosterOnly: false,
-        sound: true
+        sound: true,
+        lockExplorer: true
       }
     };
   }
@@ -1510,6 +1555,7 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
     if (!s || !Array.isArray(s.employees) || !s.config) return defaultState();
     s.prizes = [];
     if (!Array.isArray(s.draws)) s.draws = [];
+    if (typeof s.config.lockExplorer !== 'boolean') s.config.lockExplorer = true;
     return s;
   }
 
@@ -1559,8 +1605,9 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
       if (s && Array.isArray(s.employees) && s.config) {
         const hadLegacyPrizes = Array.isArray(s.prizes) && s.prizes.length > 0;
         const missingDraws = !Array.isArray(s.draws);
+        const missingLockExplorer = typeof s.config.lockExplorer !== 'boolean';
         const norm = normalizeState(s);
-        if (hadLegacyPrizes || missingDraws) {
+        if (hadLegacyPrizes || missingDraws || missingLockExplorer) {
           try { localStorage.setItem(KEY, JSON.stringify(norm)); } catch (_) { /* ignore */ }
         }
         return norm;
@@ -1601,20 +1648,116 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
     }
   }
 
+  let shellStatus = {
+    supported: false,
+    lockExplorer: true,
+    explorerRunning: true,
+    closedByApp: false,
+  };
+  let shellApiAvailable = false;
+  let shellBusy = false;
+  let shellBootCheckScheduled = false;
+
+  function renderShellBox() {
+    const cfgLock = $('#cfg-lock-explorer');
+    const statusRow = $('#shell-status-row');
+    const statusChip = $('#shell-status-chip');
+    const toggleBtn = $('#shell-toggle-btn');
+    const standaloneNote = $('#shell-standalone-note');
+    if (!cfgLock || !statusRow || !statusChip || !toggleBtn || !standaloneNote) return;
+
+    cfgLock.checked = state.config.lockExplorer !== false;
+    const canControl = hasNativeServer && !!shellStatus.supported;
+    cfgLock.disabled = !canControl || shellBusy;
+    statusRow.hidden = !canControl;
+    standaloneNote.hidden = canControl;
+
+    if (canControl) {
+      const running = !!shellStatus.explorerRunning;
+      statusChip.textContent = running ? 'Escritorio activo' : 'Escritorio cerrado';
+      statusChip.className = `chip ${running ? 'chip-ok' : 'chip-gold'}`;
+      toggleBtn.textContent = running ? 'Cerrar explorer.exe ahora' : 'Restaurar escritorio ahora';
+      toggleBtn.disabled = shellBusy;
+    }
+  }
+
+  async function refreshShellStatus() {
+    if (!hasNativeServer || !shellApiAvailable || !/^https?:$/.test(location.protocol)) {
+      shellStatus.supported = false;
+      renderShellBox();
+      return shellStatus;
+    }
+    try {
+      const res = await fetch('/api/shell', { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && typeof data.supported === 'boolean') {
+          shellStatus = data;
+          renderShellBox();
+          if (shellStatus.supported && shellStatus.explorerRunning &&
+              state.config.lockExplorer !== false && !shellBootCheckScheduled) {
+            shellBootCheckScheduled = true;
+            setTimeout(() => { refreshShellStatus(); }, 1800);
+          }
+        }
+      }
+    } catch (_) {}
+    return shellStatus;
+  }
+
+  async function applyShellAction(action) {
+    if (!hasNativeServer || !shellStatus.supported || shellBusy) return;
+    shellBusy = true;
+    renderShellBox();
+    try {
+      const res = await fetch('/api/shell', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && typeof data.supported === 'boolean') {
+          shellStatus = data;
+        }
+        if (action === 'close') {
+          toast(!shellStatus.explorerRunning
+            ? '🔒 Escritorio de Windows (explorer.exe) cerrado'
+            : '⚠️ No se pudo cerrar explorer.exe automáticamente');
+        } else {
+          toast(shellStatus.explorerRunning
+            ? '🖥️ Escritorio de Windows restaurado'
+            : '⚠️ No se pudo restaurar explorer.exe automáticamente');
+        }
+      } else {
+        toast('⚠️ No se pudo actualizar el estado de explorer.exe');
+      }
+    } catch (_) {
+      toast('⚠️ Error de comunicación con el Kiosco');
+    } finally {
+      shellBusy = false;
+      renderShellBox();
+    }
+  }
+
   async function syncFromServer() {
     if (!/^https?:$/.test(location.protocol) || syncBusy) return false;
     syncBusy = true;
     const saveSeqAtStart = localSaveSeq;
     let runLiveBootstrap = false;
+    let shouldRefreshShell = false;
     try {
       const res = await fetch('/api/state', { cache: 'no-store' });
       if (!res.ok) return false;
       const verHdr = Number(res.headers.get('X-State-Version') || 0);
+      const shellHdr = res.headers.get('X-Shell-Supported');
       const remote = await res.json();
       if (remote && Array.isArray(remote.employees)) {
         const normalized = normalizeState(remote);
         const firstConnect = !hasNativeServer;
         hasNativeServer = true;
+        shellApiAvailable = shellHdr === 'true';
+        if (firstConnect && shellApiAvailable) shouldRefreshShell = true;
         if (verHdr > 0) lastStateVersion = Math.max(lastStateVersion, verHdr);
         if (firstConnect && liveSupported === null) runLiveBootstrap = true;
         if (inflightSaves > 0 || saveSeqAtStart !== localSaveSeq) {
@@ -1648,6 +1791,8 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
           state = normalized;
           try { localStorage.setItem(KEY, remoteJson); } catch (_) {}
           renderAll();
+        } else if (firstConnect) {
+          renderShellBox();
         }
         return true;
       }
@@ -1656,6 +1801,7 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
     } finally {
       syncBusy = false;
       if (runLiveBootstrap) pollLive();
+      if (shouldRefreshShell) refreshShellStatus();
     }
     return false;
   }
@@ -2542,6 +2688,7 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
     $('#cfg-names').checked = !!cfg.showNames;
     $('#cfg-roster-only').checked = !!cfg.rosterOnly;
     $('#cfg-sound').checked = !!cfg.sound;
+    renderShellBox();
   }
 
   function renderAll() {
@@ -3008,7 +3155,7 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
             return;
           }
           if (res.ok) {
-            toast('Cerrando aplicación…');
+            toast('Cerrando aplicación y restaurando escritorio…');
             if (document.fullscreenElement) {
               document.exitFullscreen?.().catch(() => {});
             }
@@ -3088,6 +3235,7 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
     document.body.classList.toggle('in-admin', name === 'admin');
     if (location.hash !== `#${name}`) history.replaceState(null, '', `#${name}`);
     if (name === 'pantalla') requestAnimationFrame(sizeWheel);
+    if (name === 'admin') refreshShellStatus();
   }
   const activeView = () => ($('.view.active') || {}).id;
 
@@ -3331,6 +3479,18 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
     state.config.sound = e.target.checked;
     syncAudioWarmth();
     save();
+  });
+  $('#cfg-lock-explorer').addEventListener('change', async (e) => {
+    const enabled = !!e.target.checked;
+    state.config.lockExplorer = enabled;
+    save();
+    if (!hasNativeServer || !shellStatus.supported) return;
+    await applyShellAction(enabled ? 'close' : 'restore');
+  });
+  $('#shell-toggle-btn').addEventListener('click', async () => {
+    if (!hasNativeServer || !shellStatus.supported || shellBusy) return;
+    const action = shellStatus.explorerRunning ? 'close' : 'restore';
+    await applyShellAction(action);
   });
 
   $('#import-btn').addEventListener('click', () => {

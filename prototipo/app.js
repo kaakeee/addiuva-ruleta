@@ -41,7 +41,8 @@
         removeWinners: true,
         showNames: true,
         rosterOnly: false,
-        sound: true
+        sound: true,
+        lockExplorer: true
       }
     };
   }
@@ -50,6 +51,7 @@
     if (!s || !Array.isArray(s.employees) || !s.config) return defaultState();
     s.prizes = [];
     if (!Array.isArray(s.draws)) s.draws = [];
+    if (typeof s.config.lockExplorer !== 'boolean') s.config.lockExplorer = true;
     return s;
   }
 
@@ -99,8 +101,9 @@
       if (s && Array.isArray(s.employees) && s.config) {
         const hadLegacyPrizes = Array.isArray(s.prizes) && s.prizes.length > 0;
         const missingDraws = !Array.isArray(s.draws);
+        const missingLockExplorer = typeof s.config.lockExplorer !== 'boolean';
         const norm = normalizeState(s);
-        if (hadLegacyPrizes || missingDraws) {
+        if (hadLegacyPrizes || missingDraws || missingLockExplorer) {
           try { localStorage.setItem(KEY, JSON.stringify(norm)); } catch (_) { /* ignore */ }
         }
         return norm;
@@ -141,20 +144,116 @@
     }
   }
 
+  let shellStatus = {
+    supported: false,
+    lockExplorer: true,
+    explorerRunning: true,
+    closedByApp: false,
+  };
+  let shellApiAvailable = false;
+  let shellBusy = false;
+  let shellBootCheckScheduled = false;
+
+  function renderShellBox() {
+    const cfgLock = $('#cfg-lock-explorer');
+    const statusRow = $('#shell-status-row');
+    const statusChip = $('#shell-status-chip');
+    const toggleBtn = $('#shell-toggle-btn');
+    const standaloneNote = $('#shell-standalone-note');
+    if (!cfgLock || !statusRow || !statusChip || !toggleBtn || !standaloneNote) return;
+
+    cfgLock.checked = state.config.lockExplorer !== false;
+    const canControl = hasNativeServer && !!shellStatus.supported;
+    cfgLock.disabled = !canControl || shellBusy;
+    statusRow.hidden = !canControl;
+    standaloneNote.hidden = canControl;
+
+    if (canControl) {
+      const running = !!shellStatus.explorerRunning;
+      statusChip.textContent = running ? 'Escritorio activo' : 'Escritorio cerrado';
+      statusChip.className = `chip ${running ? 'chip-ok' : 'chip-gold'}`;
+      toggleBtn.textContent = running ? 'Cerrar explorer.exe ahora' : 'Restaurar escritorio ahora';
+      toggleBtn.disabled = shellBusy;
+    }
+  }
+
+  async function refreshShellStatus() {
+    if (!hasNativeServer || !shellApiAvailable || !/^https?:$/.test(location.protocol)) {
+      shellStatus.supported = false;
+      renderShellBox();
+      return shellStatus;
+    }
+    try {
+      const res = await fetch('/api/shell', { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && typeof data.supported === 'boolean') {
+          shellStatus = data;
+          renderShellBox();
+          if (shellStatus.supported && shellStatus.explorerRunning &&
+              state.config.lockExplorer !== false && !shellBootCheckScheduled) {
+            shellBootCheckScheduled = true;
+            setTimeout(() => { refreshShellStatus(); }, 1800);
+          }
+        }
+      }
+    } catch (_) {}
+    return shellStatus;
+  }
+
+  async function applyShellAction(action) {
+    if (!hasNativeServer || !shellStatus.supported || shellBusy) return;
+    shellBusy = true;
+    renderShellBox();
+    try {
+      const res = await fetch('/api/shell', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && typeof data.supported === 'boolean') {
+          shellStatus = data;
+        }
+        if (action === 'close') {
+          toast(!shellStatus.explorerRunning
+            ? '🔒 Escritorio de Windows (explorer.exe) cerrado'
+            : '⚠️ No se pudo cerrar explorer.exe automáticamente');
+        } else {
+          toast(shellStatus.explorerRunning
+            ? '🖥️ Escritorio de Windows restaurado'
+            : '⚠️ No se pudo restaurar explorer.exe automáticamente');
+        }
+      } else {
+        toast('⚠️ No se pudo actualizar el estado de explorer.exe');
+      }
+    } catch (_) {
+      toast('⚠️ Error de comunicación con el Kiosco');
+    } finally {
+      shellBusy = false;
+      renderShellBox();
+    }
+  }
+
   async function syncFromServer() {
     if (!/^https?:$/.test(location.protocol) || syncBusy) return false;
     syncBusy = true;
     const saveSeqAtStart = localSaveSeq;
     let runLiveBootstrap = false;
+    let shouldRefreshShell = false;
     try {
       const res = await fetch('/api/state', { cache: 'no-store' });
       if (!res.ok) return false;
       const verHdr = Number(res.headers.get('X-State-Version') || 0);
+      const shellHdr = res.headers.get('X-Shell-Supported');
       const remote = await res.json();
       if (remote && Array.isArray(remote.employees)) {
         const normalized = normalizeState(remote);
         const firstConnect = !hasNativeServer;
         hasNativeServer = true;
+        shellApiAvailable = shellHdr === 'true';
+        if (firstConnect && shellApiAvailable) shouldRefreshShell = true;
         if (verHdr > 0) lastStateVersion = Math.max(lastStateVersion, verHdr);
         if (firstConnect && liveSupported === null) runLiveBootstrap = true;
         if (inflightSaves > 0 || saveSeqAtStart !== localSaveSeq) {
@@ -188,6 +287,8 @@
           state = normalized;
           try { localStorage.setItem(KEY, remoteJson); } catch (_) {}
           renderAll();
+        } else if (firstConnect) {
+          renderShellBox();
         }
         return true;
       }
@@ -196,6 +297,7 @@
     } finally {
       syncBusy = false;
       if (runLiveBootstrap) pollLive();
+      if (shouldRefreshShell) refreshShellStatus();
     }
     return false;
   }
@@ -1082,6 +1184,7 @@
     $('#cfg-names').checked = !!cfg.showNames;
     $('#cfg-roster-only').checked = !!cfg.rosterOnly;
     $('#cfg-sound').checked = !!cfg.sound;
+    renderShellBox();
   }
 
   function renderAll() {
@@ -1548,7 +1651,7 @@
             return;
           }
           if (res.ok) {
-            toast('Cerrando aplicación…');
+            toast('Cerrando aplicación y restaurando escritorio…');
             if (document.fullscreenElement) {
               document.exitFullscreen?.().catch(() => {});
             }
@@ -1628,6 +1731,7 @@
     document.body.classList.toggle('in-admin', name === 'admin');
     if (location.hash !== `#${name}`) history.replaceState(null, '', `#${name}`);
     if (name === 'pantalla') requestAnimationFrame(sizeWheel);
+    if (name === 'admin') refreshShellStatus();
   }
   const activeView = () => ($('.view.active') || {}).id;
 
@@ -1871,6 +1975,18 @@
     state.config.sound = e.target.checked;
     syncAudioWarmth();
     save();
+  });
+  $('#cfg-lock-explorer').addEventListener('change', async (e) => {
+    const enabled = !!e.target.checked;
+    state.config.lockExplorer = enabled;
+    save();
+    if (!hasNativeServer || !shellStatus.supported) return;
+    await applyShellAction(enabled ? 'close' : 'restore');
+  });
+  $('#shell-toggle-btn').addEventListener('click', async () => {
+    if (!hasNativeServer || !shellStatus.supported || shellBusy) return;
+    const action = shellStatus.explorerRunning ? 'close' : 'restore';
+    await applyShellAction(action);
   });
 
   $('#import-btn').addEventListener('click', () => {

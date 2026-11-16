@@ -63,6 +63,15 @@ type AppConfig struct {
 	ShowNames     bool   `json:"showNames"`
 	RosterOnly    bool   `json:"rosterOnly"`
 	Sound         bool   `json:"sound"`
+	LockExplorer  *bool  `json:"lockExplorer,omitempty"`
+}
+
+func boolPtr(v bool) *bool {
+	return &v
+}
+
+func (c AppConfig) shouldLockExplorer() bool {
+	return c.LockExplorer == nil || *c.LockExplorer
 }
 
 type AppState struct {
@@ -86,6 +95,112 @@ type LiveEvent struct {
 	Duration     float64 `json:"duration,omitempty"`
 	PrizeID      string  `json:"prizeId,omitempty"`
 	StateVersion int64   `json:"stateVersion,omitempty"`
+}
+
+type shellStatusPayload struct {
+	Supported       bool `json:"supported"`
+	LockExplorer    bool `json:"lockExplorer"`
+	ExplorerRunning bool `json:"explorerRunning"`
+	ClosedByApp     bool `json:"closedByApp"`
+}
+
+type shellController struct {
+	supported         bool
+	isExplorerRunning func() bool
+	suspendExplorer   func() bool
+	restoreExplorer   func() bool
+	opMu              sync.Mutex
+	mu                sync.Mutex
+	closedByApp       bool
+}
+
+func newDefaultShellController() *shellController {
+	return &shellController{
+		supported:         explorerShellSupported,
+		isExplorerRunning: isExplorerShellRunning,
+		suspendExplorer:   suspendExplorerShell,
+		restoreExplorer:   restoreExplorerShell,
+	}
+}
+
+func (s *shellController) status(lockPref bool) shellStatusPayload {
+	if s == nil || !s.supported {
+		return shellStatusPayload{
+			Supported:       false,
+			LockExplorer:    lockPref,
+			ExplorerRunning: true,
+			ClosedByApp:     false,
+		}
+	}
+	running := true
+	if s.isExplorerRunning != nil {
+		running = s.isExplorerRunning()
+	}
+	s.mu.Lock()
+	closed := s.closedByApp
+	s.mu.Unlock()
+	return shellStatusPayload{
+		Supported:       true,
+		LockExplorer:    lockPref,
+		ExplorerRunning: running,
+		ClosedByApp:     closed,
+	}
+}
+
+func (s *shellController) suspend(lockPref bool) shellStatusPayload {
+	if s == nil || !s.supported {
+		return s.status(lockPref)
+	}
+	s.opMu.Lock()
+	defer s.opMu.Unlock()
+	if s.suspendExplorer != nil {
+		closed := s.suspendExplorer()
+		running := s.isExplorerRunning != nil && s.isExplorerRunning()
+		s.mu.Lock()
+		if closed || !running {
+			s.closedByApp = true
+		}
+		s.mu.Unlock()
+	}
+	return s.status(lockPref)
+}
+
+func (s *shellController) restoreUnlocked() {
+	if s.restoreExplorer == nil {
+		return
+	}
+	restored := s.restoreExplorer()
+	running := s.isExplorerRunning != nil && s.isExplorerRunning()
+	if restored || running {
+		s.mu.Lock()
+		s.closedByApp = false
+		s.mu.Unlock()
+	}
+}
+
+func (s *shellController) restore(lockPref bool) shellStatusPayload {
+	if s == nil || !s.supported {
+		return s.status(lockPref)
+	}
+	s.opMu.Lock()
+	defer s.opMu.Unlock()
+	s.restoreUnlocked()
+	return s.status(lockPref)
+}
+
+func (s *shellController) restoreIfClosed() {
+	if s == nil || !s.supported {
+		return
+	}
+	s.opMu.Lock()
+	defer s.opMu.Unlock()
+	s.mu.Lock()
+	wasClosed := s.closedByApp
+	s.mu.Unlock()
+	if !wasClosed {
+		return
+	}
+	s.restoreUnlocked()
 }
 
 var (
@@ -120,6 +235,7 @@ func defaultAppState() AppState {
 			ShowNames:     true,
 			RosterOnly:    false,
 			Sound:         true,
+			LockExplorer:  boolPtr(true),
 		},
 	}
 }
@@ -131,6 +247,9 @@ func hasStateData(st AppState) bool {
 func normalizeLoadedState(st AppState) AppState {
 	if strings.TrimSpace(st.Config.AdminPass) == "" {
 		st.Config.AdminPass = "2026"
+	}
+	if st.Config.LockExplorer == nil {
+		st.Config.LockExplorer = boolPtr(true)
 	}
 	if st.Employees == nil {
 		st.Employees = []Employee{}
@@ -302,12 +421,21 @@ func clientSeenWithin(d time.Duration) bool {
 }
 
 func buildHTTPMux(subFS fs.FS, profileDir string, onQuit func(kmd *exec.Cmd)) *http.ServeMux {
+	return buildHTTPMuxWithShell(subFS, profileDir, nil, onQuit)
+}
+
+func buildHTTPMuxWithShell(subFS fs.FS, profileDir string, shell *shellController, onQuit func(kmd *exec.Cmd)) *http.ServeMux {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/api/state", func(w http.ResponseWriter, r *http.Request) {
 		markClientSeen()
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Cache-Control", "no-store")
+		if shell != nil && shell.supported {
+			w.Header().Set("X-Shell-Supported", "true")
+		} else {
+			w.Header().Set("X-Shell-Supported", "false")
+		}
 		if r.Method == http.MethodGet {
 			mu.Lock()
 			w.Header().Set("X-State-Version", fmt.Sprintf("%d", stateVersion))
@@ -324,6 +452,10 @@ func buildHTTPMux(subFS fs.FS, profileDir string, onQuit func(kmd *exec.Cmd)) *h
 			allowEmpty := r.URL.Query().Get("allowEmpty") == "1" || r.URL.Query().Get("reset") == "1"
 
 			mu.Lock()
+			if incoming.Config.LockExplorer == nil && currentState.Config.LockExplorer != nil {
+				v := *currentState.Config.LockExplorer
+				incoming.Config.LockExplorer = &v
+			}
 			incoming = normalizeLoadedState(incoming)
 			if strings.TrimSpace(incoming.Config.AdminPass) == "" {
 				incoming.Config.AdminPass = currentState.Config.AdminPass
@@ -388,6 +520,64 @@ func buildHTTPMux(subFS fs.FS, profileDir string, onQuit func(kmd *exec.Cmd)) *h
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 	})
 
+	mux.HandleFunc("/api/shell", func(w http.ResponseWriter, r *http.Request) {
+		markClientSeen()
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Cache-Control", "no-store")
+		if r.Method == http.MethodGet {
+			mu.Lock()
+			lockPref := currentState.Config.shouldLockExplorer()
+			mu.Unlock()
+			payload := shellStatusPayload{
+				Supported:       false,
+				LockExplorer:    lockPref,
+				ExplorerRunning: true,
+			}
+			if shell != nil {
+				payload = shell.status(lockPref)
+			}
+			_ = json.NewEncoder(w).Encode(payload)
+			return
+		}
+		if r.Method == http.MethodPost {
+			var req struct {
+				Action string `json:"action"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				http.Error(w, "invalid json", http.StatusBadRequest)
+				return
+			}
+			action := strings.ToLower(strings.TrimSpace(req.Action))
+			mu.Lock()
+			lockPref := currentState.Config.shouldLockExplorer()
+			mu.Unlock()
+
+			if shell == nil || !shell.supported {
+				_ = json.NewEncoder(w).Encode(shellStatusPayload{
+					Supported:       false,
+					LockExplorer:    lockPref,
+					ExplorerRunning: true,
+					ClosedByApp:     false,
+				})
+				return
+			}
+
+			var payload shellStatusPayload
+			switch action {
+			case "close", "suspend":
+				payload = shell.suspend(lockPref)
+			case "restore":
+				payload = shell.restore(lockPref)
+			default:
+				http.Error(w, "invalid action", http.StatusBadRequest)
+				return
+			}
+			_ = json.NewEncoder(w).Encode(payload)
+			return
+		}
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	})
+
 	mux.HandleFunc("/api/quit", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -444,6 +634,8 @@ type kioskWatchdogConfig struct {
 	clientSeenSince  func(t time.Time) bool
 	clientSeenWithin func(d time.Duration) bool
 	hasVisibleWindow func() bool
+	onKioskConnected func()
+	onFallbackMode   func()
 	now              func() time.Time
 	sleep            func(d time.Duration)
 	handoffGrace     time.Duration
@@ -484,9 +676,23 @@ func runKioskWatchdog(cfg kioskWatchdogConfig) {
 		launchAt := cfg.now()
 		proc := cfg.launch(mode)
 		if proc == nil {
+			if cfg.onFallbackMode != nil {
+				cfg.onFallbackMode()
+			}
 			// Fallback al navegador predeterminado: mantener vivo el servidor y WakeLock
 			cfg.waitExit()
 			return
+		}
+
+		connectedNotified := false
+		notifyConnected := func() {
+			if connectedNotified || mode == launchModeFallback {
+				return
+			}
+			connectedNotified = true
+			if cfg.onKioskConnected != nil {
+				go cfg.onKioskConnected()
+			}
 		}
 
 		waitDone := make(chan error, 1)
@@ -499,6 +705,9 @@ func runKioskWatchdog(cfg kioskWatchdogConfig) {
 			if cfg.isQuit() {
 				cfg.waitExit()
 				return
+			}
+			if !connectedNotified && mode != launchModeFallback && cfg.clientSeenSince(launchAt) {
+				notifyConnected()
 			}
 			select {
 			case <-waitDone:
@@ -534,6 +743,7 @@ func runKioskWatchdog(cfg kioskWatchdogConfig) {
 		}
 
 		if sawClient {
+			notifyConnected()
 			quickFails = 0
 			// Mientras la app siga abierta (o en segundo plano tras handoff de Edge), NO relanzar nunca.
 			absentSince := time.Time{}
@@ -566,6 +776,9 @@ func runKioskWatchdog(cfg kioskWatchdogConfig) {
 			continue
 		}
 		mode = launchModeFallback
+		if cfg.onFallbackMode != nil {
+			cfg.onFallbackMode()
+		}
 		cfg.sleep(600 * time.Millisecond)
 	}
 }
@@ -587,6 +800,9 @@ func main() {
 
 	loadStateFromDisk()
 
+	shellCtrl := newDefaultShellController()
+	defer shellCtrl.restoreIfClosed()
+
 	// Mantener la PC y pantalla de Windows siempre encendidas
 	go keepSystemAwake(wakeStop)
 
@@ -604,9 +820,10 @@ func main() {
 	cleanupStaleProfileDirs()
 	profileDir := filepath.Join(os.TempDir(), fmt.Sprintf("addiuva-ruleta-kiosk-%d", os.Getpid()))
 
-	mux := buildHTTPMux(subFS, profileDir, func(kmd *exec.Cmd) {
+	mux := buildHTTPMuxWithShell(subFS, profileDir, shellCtrl, func(kmd *exec.Cmd) {
 		time.Sleep(80 * time.Millisecond)
 		closeAppWindows(kmd, profileDir)
+		shellCtrl.restoreIfClosed()
 		wakeStopOnce.Do(func() { close(wakeStop) })
 		exitDoneOnce.Do(func() { close(exitDone) })
 		os.Exit(0)
@@ -616,6 +833,7 @@ func main() {
 		_ = http.Serve(listener, mux)
 	}()
 
+	var shellBootOnce sync.Once
 	runKioskWatchdog(kioskWatchdogConfig{
 		launch: func(mode launchMode) browserProcess {
 			cmd := launchKioskBrowser(mode, kioskURL, profileDir)
@@ -637,6 +855,27 @@ func main() {
 		clientSeenSince:  clientSeenSince,
 		clientSeenWithin: clientSeenWithin,
 		hasVisibleWindow: hasVisibleKioskWindow,
+		onKioskConnected: func() {
+			shellBootOnce.Do(func() {
+				mu.Lock()
+				shouldLock := currentState.Config.shouldLockExplorer()
+				quit := authorizedQuit
+				mu.Unlock()
+				if quit || !shouldLock {
+					return
+				}
+				st := shellCtrl.suspend(true)
+				mu.Lock()
+				quitNow := authorizedQuit
+				mu.Unlock()
+				if quitNow && st.ClosedByApp {
+					shellCtrl.restoreIfClosed()
+				}
+			})
+		},
+		onFallbackMode: func() {
+			shellCtrl.restoreIfClosed()
+		},
 	})
 }
 

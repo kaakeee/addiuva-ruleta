@@ -20,6 +20,12 @@ CÓMO USAR AddiuvaRuleta.exe EN EL EVENTO
 2. Hacé doble clic en "AddiuvaRuleta.exe".
 3. La aplicación:
    - Se abrirá automáticamente en MODO KIOSCO A PANTALLA COMPLETA.
+   - Cerrará temporalmente el escritorio/barra de Windows (explorer.exe) para
+     que nadie pueda abrir carpetas, Inicio ni otras aplicaciones durante la
+     inscripción (al tocar "⏻ Salir" se vuelve a abrir automáticamente).
+   - Consejo: conectá antes el cable HDMI (Win + P) y el teclado Bluetooth; si
+     necesitás usar Windows en el medio, desde "3. Admin / Datos" podés tocar
+     "Restaurar escritorio ahora" o desactivar el bloqueo de explorer.exe.
    - Mantendrá la PC y la pantalla SIEMPRE ENCENDIDAS (desactiva la
      suspensión y el apagado de pantalla de Windows automáticamente
      mediante la API SetThreadExecutionState de Windows).
@@ -39,10 +45,10 @@ CONTRASEÑA DE ADMINISTRADOR (POR DEFECTO: 2026)
      - "1. Inscripción (Kiosco)"
      - "2. Generar Ruleta"
      - "3. Admin / Datos" (acá podés cambiar la contraseña, activar o
-       desactivar "Mostrar nombres en la ruleta", administrar
-       participantes o exportar a Excel)
+       desactivar "Mostrar nombres en la ruleta", restaurar o desactivar
+       el bloqueo de explorer.exe, administrar participantes o exportar a Excel)
      - "🔒 Bloquear Kiosco" (vuelve a ocultar los controles)
-     - "⏻ Salir" (cierra la aplicación de forma autorizada con contraseña)
+     - "⏻ Salir" (cierra la app con contraseña y restaura explorer.exe)
 
 ATAJOS DE TECLADO BLUETOOTH (SIN TOUCH NI MOUSE)
 ------------------------------------------------

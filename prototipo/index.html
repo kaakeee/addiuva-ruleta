@@ -355,6 +355,22 @@
               <label class="switch"><span>Mostrar nombres en la ruleta<small>Si se apaga (Modo Números), el nombre ganador queda oculto hasta descubrirlo</small></span><input type="checkbox" id="cfg-names" /></label>
               <label class="switch"><span>Validar contra padrón pre-cargado<small>Solo permite DNIs que estén en la lista importada</small></span><input type="checkbox" id="cfg-roster-only" /></label>
               <label class="switch"><span>Sonidos de giro y celebración<small>Efectos de púa y fanfarria</small></span><input type="checkbox" id="cfg-sound" /></label>
+              <div class="shell-box" id="win-shell-box">
+                <label class="switch" for="cfg-lock-explorer">
+                  <span>Cerrar escritorio Windows (explorer.exe)<small>Oculta barra, Inicio y gestos mientras la App esté abierta; se restaura al tocar Salir</small></span>
+                  <input type="checkbox" id="cfg-lock-explorer" />
+                </label>
+                <div class="shell-status-row" id="shell-status-row" hidden>
+                  <div class="shell-status-head">
+                    <span class="shell-status-label">Estado Windows:</span>
+                    <span class="chip chip-muted" id="shell-status-chip">Escritorio activo</span>
+                  </div>
+                  <button type="button" class="btn btn-ghost btn-sm shell-toggle-btn" id="shell-toggle-btn">Restaurar escritorio ahora</button>
+                </div>
+                <p class="help shell-standalone-note" id="shell-standalone-note" hidden>
+                  Disponible al ejecutar <code>AddiuvaRuleta.exe</code> en Windows.
+                </p>
+              </div>
               <div class="kbd-box" aria-label="Atajos de teclado para usar sin pantalla táctil">
                 <div class="kbd-box-title">⌨️ Control total solo con teclado (Bluetooth)</div>
                 <div class="kbd-grid">

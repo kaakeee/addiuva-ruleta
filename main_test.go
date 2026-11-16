@@ -412,3 +412,302 @@ func TestKioskWatchdogCircuitBreakerOnLaunchCrash(t *testing.T) {
 	}
 }
 
+func TestLoadStateLockExplorerDefaultAndPreserve(t *testing.T) {
+	dir := t.TempDir()
+	dataFilePath = filepath.Join(dir, "datos-sorteo-addiuva.json")
+	backupFilePath = filepath.Join(dir, "datos-sorteo-addiuva.bak.json")
+	csvFilePath = filepath.Join(dir, "inscriptos-addiuva.csv")
+
+	legacyJSON := `{"employees":[],"roster":[],"prizes":[],"draws":[],"seq":0,"dupes":0,"config":{"adminPass":"2026","removeWinners":true,"showNames":true,"rosterOnly":false,"sound":true}}`
+	if err := os.WriteFile(dataFilePath, []byte(legacyJSON), 0644); err != nil {
+		t.Fatal(err)
+	}
+	loadStateFromDisk()
+	if !currentState.Config.shouldLockExplorer() {
+		t.Fatalf("expected legacy state without lockExplorer to default to true")
+	}
+
+	mux := buildHTTPMuxWithShell(nil, "", nil, nil)
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	// Disable lockExplorer explicitly -> should persist as false
+	disabledJSON := `{"employees":[],"roster":[],"prizes":[],"draws":[],"seq":0,"dupes":0,"config":{"adminPass":"2026","removeWinners":true,"showNames":true,"rosterOnly":false,"sound":true,"lockExplorer":false}}`
+	res, err := http.Post(srv.URL+"/api/state?allowEmpty=1", "application/json", strings.NewReader(disabledJSON))
+	if err != nil {
+		t.Fatal(err)
+	}
+	res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 OK saving lockExplorer=false, got %d", res.StatusCode)
+	}
+
+	loadStateFromDisk()
+	if currentState.Config.shouldLockExplorer() {
+		t.Fatalf("expected lockExplorer=false to stay false after reload")
+	}
+
+	// Incomplete payload omitting lockExplorer should preserve server value (false)
+	res2, err := http.Post(srv.URL+"/api/state?allowEmpty=1", "application/json", strings.NewReader(legacyJSON))
+	if err != nil {
+		t.Fatal(err)
+	}
+	res2.Body.Close()
+	if currentState.Config.shouldLockExplorer() {
+		t.Fatalf("expected omitted lockExplorer in POST to preserve existing false setting")
+	}
+}
+
+func TestApiShellEndpointAndControllerState(t *testing.T) {
+	mu.Lock()
+	currentState = defaultAppState()
+	mu.Unlock()
+
+	var running atomic.Bool
+	running.Store(true)
+	var suspendCalls, restoreCalls atomic.Int32
+
+	ctrl := &shellController{
+		supported: true,
+		isExplorerRunning: func() bool {
+			return running.Load()
+		},
+		suspendExplorer: func() bool {
+			suspendCalls.Add(1)
+			time.Sleep(25 * time.Millisecond)
+			running.Store(false)
+			return true
+		},
+		restoreExplorer: func() bool {
+			restoreCalls.Add(1)
+			running.Store(true)
+			return true
+		},
+	}
+
+	mux := buildHTTPMuxWithShell(nil, "", ctrl, nil)
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	resState, err := http.Get(srv.URL + "/api/state")
+	if err != nil {
+		t.Fatal(err)
+	}
+	resState.Body.Close()
+	if got := resState.Header.Get("X-Shell-Supported"); got != "true" {
+		t.Fatalf("expected X-Shell-Supported: true header, got %q", got)
+	}
+
+	// GET initial status
+	resGet, err := http.Get(srv.URL + "/api/shell")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var st shellStatusPayload
+	if err := json.NewDecoder(resGet.Body).Decode(&st); err != nil {
+		resGet.Body.Close()
+		t.Fatal(err)
+	}
+	resGet.Body.Close()
+	if !st.Supported || !st.LockExplorer || !st.ExplorerRunning || st.ClosedByApp {
+		t.Fatalf("unexpected initial GET /api/shell status: %+v", st)
+	}
+
+	// POST close
+	resClose, err := http.Post(srv.URL+"/api/shell", "application/json", strings.NewReader(`{"action":"close"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.NewDecoder(resClose.Body).Decode(&st); err != nil {
+		resClose.Body.Close()
+		t.Fatal(err)
+	}
+	resClose.Body.Close()
+	if st.ExplorerRunning || !st.ClosedByApp || suspendCalls.Load() != 1 {
+		t.Fatalf("expected closedByApp=true & explorerRunning=false after close, got %+v", st)
+	}
+
+	// POST invalid action -> 400
+	resBad, err := http.Post(srv.URL+"/api/shell", "application/json", strings.NewReader(`{"action":"invalid"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	resBad.Body.Close()
+	if resBad.StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected 400 on invalid action, got %d", resBad.StatusCode)
+	}
+
+	// POST restore
+	resRestore, err := http.Post(srv.URL+"/api/shell", "application/json", strings.NewReader(`{"action":"restore"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.NewDecoder(resRestore.Body).Decode(&st); err != nil {
+		resRestore.Body.Close()
+		t.Fatal(err)
+	}
+	resRestore.Body.Close()
+	if !st.ExplorerRunning || st.ClosedByApp || restoreCalls.Load() != 1 {
+		t.Fatalf("expected restored shell, got %+v", st)
+	}
+
+	// Second restoreIfClosed while already open should be a no-op
+	ctrl.restoreIfClosed()
+	if restoreCalls.Load() != 1 {
+		t.Fatalf("expected restoreIfClosed when not closed to be a no-op, got %d calls", restoreCalls.Load())
+	}
+
+	// Concurrency: suspend in-flight while restoreIfClosed runs
+	doneSuspend := make(chan struct{})
+	go func() {
+		ctrl.suspend(true)
+		close(doneSuspend)
+	}()
+	time.Sleep(5 * time.Millisecond)
+	ctrl.restoreIfClosed()
+	<-doneSuspend
+	if !running.Load() || ctrl.status(true).ClosedByApp {
+		t.Fatalf("expected restoreIfClosed serialized after in-flight suspend to leave Explorer running")
+	}
+}
+
+func TestKioskWatchdogSuspendsAndRestoresExplorer(t *testing.T) {
+	// 1. Long-lived browser PID connects without exiting first -> onKioskConnected still fires cleanly
+	{
+		var quit, connected atomic.Bool
+		clientAlive := atomic.Bool{}
+		procDone := make(chan struct{})
+
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			runKioskWatchdog(kioskWatchdogConfig{
+				handoffGrace:     80 * time.Millisecond,
+				clientStaleAfter: 60 * time.Millisecond,
+				closeDebounce:    40 * time.Millisecond,
+				pollInterval:     5 * time.Millisecond,
+				launch: func(mode launchMode) browserProcess {
+					go func() {
+						time.Sleep(12 * time.Millisecond)
+						clientAlive.Store(true)
+					}()
+					return chanBrowserProc{done: procDone}
+				},
+				isQuit:           func() bool { return quit.Load() },
+				waitExit:         func() {},
+				clientSeenSince:  func(t time.Time) bool { return clientAlive.Load() },
+				clientSeenWithin: func(d time.Duration) bool { return clientAlive.Load() },
+				hasVisibleWindow: func() bool { return false },
+				onKioskConnected: func() {
+					connected.Store(true)
+					quit.Store(true)
+					close(procDone)
+				},
+			})
+		}()
+
+		select {
+		case <-done:
+		case <-time.After(3 * time.Second):
+			t.Fatal("watchdog long-lived PID test timed out")
+		}
+		if !connected.Load() {
+			t.Fatal("expected onKioskConnected to fire for long-lived browser PID without waiting for exit")
+		}
+	}
+
+	// 2. Stub handoff (launcher PID exits in 2ms, child tab connects at 15ms) -> onKioskConnected fires once
+	{
+		var quit atomic.Bool
+		var connectCalls atomic.Int32
+		clientAlive := atomic.Bool{}
+
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			runKioskWatchdog(kioskWatchdogConfig{
+				handoffGrace:     80 * time.Millisecond,
+				clientStaleAfter: 60 * time.Millisecond,
+				closeDebounce:    40 * time.Millisecond,
+				pollInterval:     5 * time.Millisecond,
+				launch: func(mode launchMode) browserProcess {
+					go func() {
+						time.Sleep(15 * time.Millisecond)
+						clientAlive.Store(true)
+					}()
+					return fakeBrowserProc{exitAfter: 2 * time.Millisecond}
+				},
+				isQuit:           func() bool { return quit.Load() },
+				waitExit:         func() {},
+				clientSeenSince:  func(t time.Time) bool { return clientAlive.Load() },
+				clientSeenWithin: func(d time.Duration) bool { return clientAlive.Load() },
+				hasVisibleWindow: func() bool { return clientAlive.Load() },
+				onKioskConnected: func() {
+					connectCalls.Add(1)
+					time.Sleep(15 * time.Millisecond)
+					quit.Store(true)
+				},
+			})
+		}()
+
+		select {
+		case <-done:
+		case <-time.After(3 * time.Second):
+			t.Fatal("watchdog stub handoff explorer test timed out")
+		}
+		if connectCalls.Load() != 1 {
+			t.Fatalf("expected onKioskConnected to fire once on stub handoff, got %d", connectCalls.Load())
+		}
+	}
+
+	// 2. Circuit breaker to fallback -> onKioskConnected NOT called, onFallbackMode IS called
+	{
+		var connected, fallback atomic.Bool
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			runKioskWatchdog(kioskWatchdogConfig{
+				handoffGrace:     15 * time.Millisecond,
+				clientStaleAfter: 15 * time.Millisecond,
+				closeDebounce:    15 * time.Millisecond,
+				pollInterval:     5 * time.Millisecond,
+				launch: func(mode launchMode) browserProcess {
+					if mode == launchModeFallback {
+						return nil
+					}
+					return fakeBrowserProc{exitAfter: 2 * time.Millisecond}
+				},
+				isQuit:           func() bool { return false },
+				waitExit:         func() {},
+				clientSeenSince:  func(t time.Time) bool { return false },
+				clientSeenWithin: func(d time.Duration) bool { return false },
+				hasVisibleWindow: func() bool { return false },
+				onKioskConnected: func() { connected.Store(true) },
+				onFallbackMode:   func() { fallback.Store(true) },
+				sleep:            func(d time.Duration) { time.Sleep(2 * time.Millisecond) },
+			})
+		}()
+
+		select {
+		case <-done:
+		case <-time.After(3 * time.Second):
+			t.Fatal("watchdog fallback explorer test timed out")
+		}
+		if connected.Load() {
+			t.Fatal("onKioskConnected must not run when browser never connected")
+		}
+		if !fallback.Load() {
+			t.Fatal("expected onFallbackMode to fire on fallback")
+		}
+	}
+}
+
+type chanBrowserProc struct {
+	done <-chan struct{}
+}
+
+func (c chanBrowserProc) Wait() error {
+	<-c.done
+	return nil
+}
+

@@ -21,23 +21,30 @@ const (
 	esAwayMode        = 0x00000040
 
 	wmClose          = 0x0010
+	wmExitExplorer   = 0x05B4 // WM_USER + 436 ("Exit Explorer" limpio sin AutoRestartShell)
 	processTerminate = 0x0001
+	processQueryInfo = 0x1000 // PROCESS_QUERY_LIMITED_INFORMATION
+	rmForceShutdown  = 0x0001
 
-	kioskWindowTitleMatch = "Addiuva · Kiosco"
+	kioskWindowTitleMatch     = "Addiuva · Kiosco"
+	explorerShellSupported    = true
 )
 
 var (
-	kernel32               = syscall.NewLazyDLL("kernel32.dll")
-	procSetThreadExecState = kernel32.NewProc("SetThreadExecutionState")
-	procCreateMutexW       = kernel32.NewProc("CreateMutexW")
-	procCloseHandle        = kernel32.NewProc("CloseHandle")
-	procOpenProcess        = kernel32.NewProc("OpenProcess")
-	procTerminateProcess   = kernel32.NewProc("TerminateProcess")
+	kernel32                 = syscall.NewLazyDLL("kernel32.dll")
+	procSetThreadExecState   = kernel32.NewProc("SetThreadExecutionState")
+	procCreateMutexW         = kernel32.NewProc("CreateMutexW")
+	procCloseHandle          = kernel32.NewProc("CloseHandle")
+	procOpenProcess          = kernel32.NewProc("OpenProcess")
+	procTerminateProcess     = kernel32.NewProc("TerminateProcess")
+	procQueryFullProcImageW  = kernel32.NewProc("QueryFullProcessImageNameW")
+	procGetProcessTimes      = kernel32.NewProc("GetProcessTimes")
 
 	user32                        = syscall.NewLazyDLL("user32.dll")
 	procSetProcessDpiAwarenessCtx = user32.NewProc("SetProcessDpiAwarenessContext")
 	procEnumWindows               = user32.NewProc("EnumWindows")
 	procGetWindowTextW            = user32.NewProc("GetWindowTextW")
+	procGetClassNameW             = user32.NewProc("GetClassNameW")
 	procIsWindowVisible           = user32.NewProc("IsWindowVisible")
 	procPostMessageW              = user32.NewProc("PostMessageW")
 	procGetWindowThreadProcessId  = user32.NewProc("GetWindowThreadProcessId")
@@ -45,6 +52,12 @@ var (
 
 	shcore                     = syscall.NewLazyDLL("shcore.dll")
 	procSetProcessDpiAwareness = shcore.NewProc("SetProcessDpiAwareness")
+
+	rstrtmgr              = syscall.NewLazyDLL("rstrtmgr.dll")
+	procRmStartSession    = rstrtmgr.NewProc("RmStartSession")
+	procRmRegisterRes     = rstrtmgr.NewProc("RmRegisterResources")
+	procRmShutdown        = rstrtmgr.NewProc("RmShutdown")
+	procRmEndSession      = rstrtmgr.NewProc("RmEndSession")
 
 	winMu              sync.Mutex
 	collectedHwnds     []uintptr
@@ -68,6 +81,38 @@ var (
 					break
 				}
 			}
+		}
+		return 1
+	})
+
+	explorerMu             sync.Mutex
+	collectedTrayHwnds     []uintptr
+	collectedShellHwnds    []uintptr
+	collectedExplorerPids  []uint32
+	collectedExplorerSeen  map[uint32]struct{}
+
+	explorerEnumCb = syscall.NewCallback(func(hwnd, lparam uintptr) uintptr {
+		var clsBuf [128]uint16
+		n, _, _ := procGetClassNameW.Call(hwnd, uintptr(unsafe.Pointer(&clsBuf[0])), uintptr(len(clsBuf)))
+		if n == 0 {
+			return 1
+		}
+		cls := syscall.UTF16ToString(clsBuf[:n])
+		if cls != "Shell_TrayWnd" && cls != "Shell_SecondaryTrayWnd" && cls != "Progman" {
+			return 1
+		}
+		var pid uint32
+		_, _, _ = procGetWindowThreadProcessId.Call(hwnd, uintptr(unsafe.Pointer(&pid)))
+		if pid == 0 || !isExplorerProcess(pid) {
+			return 1
+		}
+		collectedShellHwnds = append(collectedShellHwnds, hwnd)
+		if cls == "Shell_TrayWnd" {
+			collectedTrayHwnds = append(collectedTrayHwnds, hwnd)
+		}
+		if _, ok := collectedExplorerSeen[pid]; !ok {
+			collectedExplorerSeen[pid] = struct{}{}
+			collectedExplorerPids = append(collectedExplorerPids, pid)
 		}
 		return 1
 	})
@@ -166,6 +211,185 @@ func findWindowsByTitles(onlyVisible bool, needles ...string) []uintptr {
 
 func hasVisibleKioskWindow() bool {
 	return len(findWindowsByTitles(true, kioskWindowTitleMatch)) > 0
+}
+
+type rmUniqueProcess struct {
+	ProcessID        uint32
+	ProcessStartTime syscall.Filetime
+}
+
+var explorerActionMu sync.Mutex
+
+func isExplorerProcess(pid uint32) bool {
+	if pid == 0 {
+		return false
+	}
+	hProc, _, _ := procOpenProcess.Call(processQueryInfo, 0, uintptr(pid))
+	if hProc == 0 {
+		return false
+	}
+	defer procCloseHandle.Call(hProc)
+
+	var buf [512]uint16
+	size := uint32(len(buf))
+	r, _, _ := procQueryFullProcImageW.Call(hProc, 0, uintptr(unsafe.Pointer(&buf[0])), uintptr(unsafe.Pointer(&size)))
+	if r == 0 || size == 0 {
+		return false
+	}
+	exe := syscall.UTF16ToString(buf[:size])
+	return strings.EqualFold(filepath.Base(exe), "explorer.exe")
+}
+
+func findExplorerShellWindows() (trayHwnds []uintptr, shellHwnds []uintptr, pids []uint32) {
+	explorerMu.Lock()
+	defer explorerMu.Unlock()
+	collectedTrayHwnds = nil
+	collectedShellHwnds = nil
+	collectedExplorerPids = nil
+	collectedExplorerSeen = make(map[uint32]struct{})
+	_, _, _ = procEnumWindows.Call(explorerEnumCb, 0)
+
+	trayHwnds = append([]uintptr(nil), collectedTrayHwnds...)
+	shellHwnds = append([]uintptr(nil), collectedShellHwnds...)
+	pids = append([]uint32(nil), collectedExplorerPids...)
+	return trayHwnds, shellHwnds, pids
+}
+
+func isExplorerShellRunning() bool {
+	trayHwnds, shellHwnds, _ := findExplorerShellWindows()
+	return len(trayHwnds) > 0 || len(shellHwnds) > 0
+}
+
+func shutdownProcessesViaRestartManager(pids []uint32) bool {
+	if len(pids) == 0 ||
+		procRmStartSession.Find() != nil ||
+		procRmRegisterRes.Find() != nil ||
+		procRmShutdown.Find() != nil ||
+		procRmEndSession.Find() != nil {
+		return false
+	}
+
+	var rmProcs []rmUniqueProcess
+	for _, pid := range pids {
+		hProc, _, _ := procOpenProcess.Call(processQueryInfo, 0, uintptr(pid))
+		if hProc == 0 {
+			continue
+		}
+		var ct, et, kt, ut syscall.Filetime
+		ok, _, _ := procGetProcessTimes.Call(
+			hProc,
+			uintptr(unsafe.Pointer(&ct)),
+			uintptr(unsafe.Pointer(&et)),
+			uintptr(unsafe.Pointer(&kt)),
+			uintptr(unsafe.Pointer(&ut)),
+		)
+		_, _, _ = procCloseHandle.Call(hProc)
+		if ok != 0 {
+			rmProcs = append(rmProcs, rmUniqueProcess{
+				ProcessID:        pid,
+				ProcessStartTime: ct,
+			})
+		}
+	}
+	if len(rmProcs) == 0 {
+		return false
+	}
+
+	var session uint32
+	var sessionKey [33]uint16
+	r1, _, _ := procRmStartSession.Call(uintptr(unsafe.Pointer(&session)), 0, uintptr(unsafe.Pointer(&sessionKey[0])))
+	if r1 != 0 {
+		return false
+	}
+	defer procRmEndSession.Call(uintptr(session))
+
+	r2, _, _ := procRmRegisterRes.Call(
+		uintptr(session),
+		0, 0,
+		uintptr(len(rmProcs)), uintptr(unsafe.Pointer(&rmProcs[0])),
+		0, 0,
+	)
+	if r2 != 0 {
+		return false
+	}
+	r3, _, _ := procRmShutdown.Call(uintptr(session), uintptr(rmForceShutdown), 0)
+	return r3 == 0
+}
+
+// suspendExplorerShell cierra limpiamente explorer.exe (sin activar AutoRestartShell).
+func suspendExplorerShell() bool {
+	explorerActionMu.Lock()
+	defer explorerActionMu.Unlock()
+
+	trayHwnds, _, pids := findExplorerShellWindows()
+	if len(trayHwnds) == 0 && len(pids) == 0 {
+		return !isExplorerShellRunning()
+	}
+
+	// 1. Mensaje nativo WM_EXITEXPLORER (mismo que Ctrl+Shift+Clic derecho -> Salir del Explorador)
+	for _, h := range trayHwnds {
+		_, _, _ = procPostMessageW.Call(h, wmExitExplorer, 0, 0)
+	}
+	deadline := time.Now().Add(1200 * time.Millisecond)
+	for time.Now().Before(deadline) {
+		if !isExplorerShellRunning() {
+			return true
+		}
+		time.Sleep(60 * time.Millisecond)
+	}
+
+	// 2. Respaldo oficial vía Windows Restart Manager (cierre ordenado sin AutoRestartShell loop)
+	_, _, pids = findExplorerShellWindows()
+	if len(pids) > 0 && shutdownProcessesViaRestartManager(pids) {
+		deadline2 := time.Now().Add(1500 * time.Millisecond)
+		for time.Now().Before(deadline2) {
+			if !isExplorerShellRunning() {
+				return true
+			}
+			time.Sleep(80 * time.Millisecond)
+		}
+	}
+	return !isExplorerShellRunning()
+}
+
+// restoreExplorerShell vuelve a iniciar explorer.exe solo si el shell no está activo,
+// evitando abrir ventanas de carpetas duplicadas.
+func restoreExplorerShell() bool {
+	explorerActionMu.Lock()
+	defer explorerActionMu.Unlock()
+
+	if isExplorerShellRunning() {
+		return true
+	}
+
+	winDir := strings.TrimSpace(os.Getenv("SystemRoot"))
+	if winDir == "" {
+		winDir = strings.TrimSpace(os.Getenv("WINDIR"))
+	}
+	if winDir == "" {
+		winDir = `C:\Windows`
+	}
+	expExe := filepath.Join(winDir, "explorer.exe")
+	if _, err := os.Stat(expExe); err != nil {
+		expExe = "explorer.exe"
+	}
+
+	cmd := exec.Command(expExe)
+	if err := cmd.Start(); err != nil {
+		return false
+	}
+	go func() {
+		_ = cmd.Wait()
+	}()
+
+	deadline := time.Now().Add(2000 * time.Millisecond)
+	for time.Now().Before(deadline) {
+		if isExplorerShellRunning() {
+			return true
+		}
+		time.Sleep(80 * time.Millisecond)
+	}
+	return isExplorerShellRunning()
 }
 
 func killProcessTreeWindows(pid uint32) {
