@@ -96,7 +96,11 @@ var (
 	csvFilePath    string
 	authorizedQuit bool
 	activeKioskCmd *exec.Cmd
+	activeHdmiCmd  *exec.Cmd
 	wakeStop       = make(chan struct{})
+	wakeStopOnce   sync.Once
+	exitDone       = make(chan struct{})
+	exitDoneOnce   sync.Once
 )
 
 func defaultAppState() AppState {
@@ -178,38 +182,7 @@ func writeCsvBackupLocked() error {
 	return os.WriteFile(csvFilePath, buf.Bytes(), 0644)
 }
 
-func main() {
-	initDpiAwareness()
-	if !acquireSingleInstance() {
-		return
-	}
-	exePath, err := os.Executable()
-	baseDir := "."
-	if err == nil {
-		baseDir = filepath.Dir(exePath)
-	}
-	dataFilePath = filepath.Join(baseDir, "datos-sorteo-addiuva.json")
-	csvFilePath = filepath.Join(baseDir, "inscriptos-addiuva.csv")
-
-	loadStateFromDisk()
-
-	// Mantener la PC y pantalla de Windows siempre encendidas
-	go keepSystemAwake(wakeStop)
-
-	subFS, err := fs.Sub(embeddedFiles, "prototipo")
-	if err != nil {
-		return
-	}
-
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		return
-	}
-	port := listener.Addr().(*net.TCPAddr).Port
-	kioskURL := fmt.Sprintf("http://127.0.0.1:%d/#kiosco", port)
-	hdmiURL := fmt.Sprintf("http://127.0.0.1:%d/?hdmi=1#pantalla", port)
-	profileDir := filepath.Join(os.TempDir(), "addiuva-ruleta-kiosk-profile")
-
+func buildHTTPMux(subFS fs.FS, hdmiURL string, profileDir string, onQuit func(kmd, hmd *exec.Cmd)) *http.ServeMux {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/api/state", func(w http.ResponseWriter, r *http.Request) {
@@ -282,7 +255,12 @@ func main() {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		info := launchHdmiWindow(hdmiURL, profileDir)
+		info, hmd := launchHdmiWindow(hdmiURL, profileDir)
+		if hmd != nil {
+			mu.Lock()
+			activeHdmiCmd = hmd
+			mu.Unlock()
+		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(struct {
 			Ok           bool  `json:"ok"`
@@ -318,24 +296,69 @@ func main() {
 			http.Error(w, "unauthorized", http.StatusForbidden)
 			return
 		}
+		alreadyClosing := authorizedQuit
 		authorizedQuit = true
 		kmd := activeKioskCmd
+		hmd := activeHdmiCmd
 		mu.Unlock()
 
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"ok":true}`))
+		if f, ok := w.(http.Flusher); ok {
+			f.Flush()
+		}
 
-		go func() {
-			time.Sleep(250 * time.Millisecond)
-			close(wakeStop)
-			if kmd != nil && kmd.Process != nil {
-				_ = kmd.Process.Kill()
-			}
-			os.Exit(0)
-		}()
+		if !alreadyClosing && onQuit != nil {
+			go onQuit(kmd, hmd)
+		}
 	})
 
-	mux.Handle("/", http.FileServer(http.FS(subFS)))
+	if subFS != nil {
+		mux.Handle("/", http.FileServer(http.FS(subFS)))
+	}
+	return mux
+}
+
+func main() {
+	initDpiAwareness()
+	if !acquireSingleInstance() {
+		return
+	}
+	exePath, err := os.Executable()
+	baseDir := "."
+	if err == nil {
+		baseDir = filepath.Dir(exePath)
+	}
+	dataFilePath = filepath.Join(baseDir, "datos-sorteo-addiuva.json")
+	csvFilePath = filepath.Join(baseDir, "inscriptos-addiuva.csv")
+
+	loadStateFromDisk()
+
+	// Mantener la PC y pantalla de Windows siempre encendidas
+	go keepSystemAwake(wakeStop)
+
+	subFS, err := fs.Sub(embeddedFiles, "prototipo")
+	if err != nil {
+		return
+	}
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return
+	}
+	port := listener.Addr().(*net.TCPAddr).Port
+	kioskURL := fmt.Sprintf("http://127.0.0.1:%d/#kiosco", port)
+	hdmiURL := fmt.Sprintf("http://127.0.0.1:%d/?hdmi=1#pantalla", port)
+	cleanupStaleProfileDirs()
+	profileDir := filepath.Join(os.TempDir(), fmt.Sprintf("addiuva-ruleta-kiosk-%d", os.Getpid()))
+
+	mux := buildHTTPMux(subFS, hdmiURL, profileDir, func(kmd, hmd *exec.Cmd) {
+		time.Sleep(80 * time.Millisecond)
+		closeAppWindows(kmd, hmd, profileDir)
+		wakeStopOnce.Do(func() { close(wakeStop) })
+		exitDoneOnce.Do(func() { close(exitDone) })
+		os.Exit(0)
+	})
 
 	go func() {
 		_ = http.Serve(listener, mux)
@@ -347,6 +370,7 @@ func main() {
 		mu.Lock()
 		if authorizedQuit {
 			mu.Unlock()
+			<-exitDone
 			return
 		}
 		startedAt := time.Now()
@@ -356,7 +380,8 @@ func main() {
 
 		if cmd == nil {
 			// Si usó el navegador predeterminado (fallback), mantener vivo el servidor y el WakeLock
-			select {}
+			<-exitDone
+			return
 		}
 		_ = cmd.Wait()
 		if time.Since(startedAt) < 1500*time.Millisecond {

@@ -1,9 +1,8 @@
 /* =========================================================
    Addiuva · Kiosco de Inscripción (DNI + Nombre) y Ruleta
    ---------------------------------------------------------
-   - Identificación única por DNI + Nombre y Apellido completo
-   - Triple blindaje anti-duplicado (DNI, Nombre exacto y
-     Nombre con orden de palabras invertido)
+   - Identificación por DNI (entre 2 y 12 números) + Nombre y Apellido
+   - Bloqueo anti-duplicado únicamente por DNI
    - La misma App genera la Ruleta del sorteo
    - Bloqueo Kiosco a pantalla completa con contraseña +
      Screen Wake Lock (mantiene la PC encendida)
@@ -56,7 +55,7 @@
   }
 
   /* ---------------- Normalización estricta de DNI y Nombre ---------------- */
-  const cleanDni = (raw) => String(raw || '').replace(/\D/g, '').replace(/^0+/, '');
+  const cleanDni = (raw) => String(raw || '').replace(/\D/g, '');
   const formatDni = (dni) => {
     const d = cleanDni(dni);
     return d.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
@@ -72,10 +71,6 @@
     .replace(/[^a-z\s]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
-  const sortedWordsKey = (raw) => {
-    const words = normName(raw).split(' ').filter(Boolean);
-    return words.slice().sort().join('|');
-  };
   const titleCaseName = (raw) => String(raw || '')
     .replace(/\s+/g, ' ')
     .trim()
@@ -321,11 +316,11 @@
   const nextRoundNum = (draws = state.draws || []) =>
     draws.reduce((m, d) => Math.max(m, Number(d.round) || 0), 0) + 1;
 
-  /* ---------------- Reglas Anti-Duplicado (DNI + Nombre Completo) ---------------- */
+  /* ---------------- Reglas Anti-Duplicado (solo por DNI, 2 a 12 dígitos) ---------------- */
   function validateCandidate(rawDni, rawNombre) {
     const dni = cleanDni(rawDni);
-    if (!dni || dni.length < 6 || dni.length > 10) {
-      return { error: 'Ingresá un número de DNI válido (entre 6 y 10 números, sin puntos).' };
+    if (!dni || dni.length < 2 || dni.length > 12) {
+      return { error: 'Ingresá un número de DNI válido (entre 2 y 12 números, sin puntos).' };
     }
     const nombre = titleCaseName(rawNombre);
     const words = normName(nombre).split(' ').filter((w) => w.length >= 2);
@@ -341,24 +336,13 @@
       }
     }
 
-    const nName = normName(nombre);
-    const wKey = sortedWordsKey(nombre);
-
-    // 1. ¿Ya existe este DNI?
+    // Bloqueo anti-duplicado únicamente por DNI
     const byDni = state.employees.find((e) => cleanDni(e.dni) === dni);
     if (byDni) {
       return { dupType: 'dni', existing: byDni };
     }
 
-    // 2. ¿Ya existe exactamente este Nombre Completo (o con nombre/apellido invertidos) con otro DNI?
-    const byName = state.employees.find((e) =>
-      normName(e.nombre) === nName || sortedWordsKey(e.nombre) === wKey
-    );
-    if (byName) {
-      return { dupType: 'name', existing: byName };
-    }
-
-    return { ok: true, dni, nombre, nName, wKey };
+    return { ok: true, dni, nombre };
   }
 
   function registerParticipant(rawDni, rawNombre, { persist = true, countDupe = true } = {}) {
@@ -666,7 +650,7 @@
 
     const seg = TAU / n;
     const useNames = state.config.showNames && n <= 80;
-    const fontSize = Math.max(9, Math.min(R * (useNames ? 0.072 : 0.085), R * seg * (useNames ? 0.48 : 0.62)));
+    const fontSize = Math.max(9, Math.min(R * (useNames ? 0.068 : 0.082), R * seg * (useNames ? 0.45 : 0.58)));
     wctx.font = `700 ${fontSize}px "Segoe UI", system-ui, sans-serif`;
     wctx.textBaseline = 'middle';
 
@@ -680,7 +664,7 @@
       wctx.rotate(flip ? mid + Math.PI : mid);
       wctx.textAlign = flip ? 'left' : 'right';
       wctx.fillStyle = color === '#FFB26B' ? '#1E1041' : '#FFFFFF';
-      wctx.fillText(label, flip ? -R * 0.94 : R * 0.94, 0, R * 0.57);
+      wctx.fillText(label, flip ? -R * 0.94 : R * 0.94, 0, R * 0.47);
       wctx.restore();
     }
 
@@ -1006,11 +990,6 @@
         : 'Modo números · nombre oculto hasta descubrirlo';
     }
 
-    const recent = pres.slice().sort((a, b) => b.checkin.localeCompare(a.checkin)).slice(0, 8);
-    $('#feed').innerHTML = recent.map((e) =>
-      `<li class="${showNames ? '' : 'masked'}"><span class="num">#${pad(e.numero)}</span><span class="who">${showNames ? esc(e.nombre) : 'Nombre oculto'}</span><time>${fmtTime(e.checkin)}</time></li>`).join('');
-    $('#feed-empty').hidden = recent.length > 0;
-
     const draws = state.draws || [];
     $('#current-round').textContent = `Ronda #${nextRoundNum(draws)}`;
     $('#winners-count').textContent = String(draws.length);
@@ -1021,7 +1000,6 @@
       const timeStr = d.at ? `Confirmado · ${fmtTime(d.at)}` : 'Ganador confirmado';
       return `<li class="prize-item winner-item done ${latestCls}"><span class="idx">#${roundNum}</span><span class="pname">#${pad(d.numero)} · ${esc(d.nombre)}</span><span class="pwinner">${timeStr}</span></li>`;
     }).join('');
-    $('#winner-list-empty').hidden = draws.length > 0;
 
     syncWheel();
   }
@@ -1034,7 +1012,7 @@
     $('#st-present').textContent = pres.length;
     $('#st-present-pct').textContent = state.config.rosterOnly && state.roster.length
       ? `Padrón activo (${state.roster.length} en lista)`
-      : 'Únicos por DNI + Nombre';
+      : 'Únicos por DNI';
     $('#st-wheel').textContent = elig.length;
     $('#st-winners').textContent = String(draws.length);
     $('#st-dupes').textContent = state.dupes || 0;
@@ -1281,7 +1259,7 @@
       const inp = $('#k-dni');
       if (/^[0-9]$/.test(k)) {
         e.preventDefault();
-        if (inp.value.length < 10) { inp.value += k; inp.dispatchEvent(new Event('input')); }
+        if (inp.value.length < 12) { inp.value += k; inp.dispatchEvent(new Event('input')); }
       } else if (k === 'Backspace') {
         e.preventDefault();
         inp.value = inp.value.slice(0, -1);
@@ -1312,7 +1290,7 @@
     const inp = $('#k-dni');
     if (k === 'CLEAR') inp.value = '';
     else if (k === 'BACK') inp.value = inp.value.slice(0, -1);
-    else if (inp.value.length < 10) inp.value += k;
+    else if (inp.value.length < 12) inp.value += k;
     inp.dispatchEvent(new Event('input'));
   });
 
@@ -1349,13 +1327,6 @@
       save();
       return showTicketScreen(check.existing, { isDup: true });
     }
-    if (check.dupType === 'name') {
-      state.dupes = (state.dupes || 0) + 1;
-      save();
-      return showKioskError(
-        `⛔ Ya existe una inscripción para «${check.existing.nombre}» (N.º #${pad(check.existing.numero)}, DNI ${maskDni(check.existing.dni)}). No se permite inscribirse dos veces con otro DNI.`
-      );
-    }
 
     pendingCandidate = { dni: check.dni, nombre: check.nombre };
     $('#k-conf-avatar').textContent = initials(check.nombre);
@@ -1377,10 +1348,6 @@
       setKioskStep('form');
       return showKioskError(res.error);
     }
-    if (res.dup && res.dupType === 'name') {
-      setKioskStep('form');
-      return showKioskError(`⛔ «${res.emp.nombre}» ya está inscripto/a con el número #${pad(res.emp.numero)}.`);
-    }
     showTicketScreen(res.emp, { isDup: !!res.dup });
   });
 
@@ -1390,10 +1357,11 @@
   let authCallback = null;
   let authReturnFocus = null;
 
-  function openAuthModal(subtitle, onSuccess) {
+  function openAuthModal(subtitle, onSuccess, submitLabel = 'Desbloquear') {
     authReturnFocus = document.activeElement;
     authCallback = onSuccess;
     $('#auth-sub').textContent = subtitle || 'Ingresá la contraseña de Administrador para continuar.';
+    $('#auth-submit').textContent = submitLabel || 'Desbloquear';
     $('#auth-input').value = '';
     $('#auth-error').classList.remove('show');
     $('#auth-overlay').classList.add('show');
@@ -1402,6 +1370,7 @@
 
   function closeAuthModal({ restore = true } = {}) {
     $('#auth-overlay').classList.remove('show');
+    $('#auth-submit').textContent = 'Desbloquear';
     authCallback = null;
     const rf = authReturnFocus;
     authReturnFocus = null;
@@ -1521,21 +1490,36 @@
 
   $('#btn-quit-app').addEventListener('click', () => {
     openAuthModal('Confirmá la contraseña para cerrar el Kiosco y salir al escritorio de Windows.', async (enteredPass) => {
-      if (hasNativeServer) {
+      const isHttp = /^https?:$/.test(location.protocol);
+      if (hasNativeServer || isHttp) {
         try {
-          await fetch('/api/quit', {
+          const res = await fetch('/api/quit', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ password: enteredPass })
           });
+          if (res.status === 403) {
+            toast('⚠️ Contraseña incorrecta en el servidor.');
+            return;
+          }
+          if (res.ok) {
+            toast('Cerrando aplicación…');
+            if (document.fullscreenElement) {
+              document.exitFullscreen?.().catch(() => {});
+            }
+            window.close();
+            return;
+          }
         } catch (_) {}
       }
       if (document.fullscreenElement) {
         document.exitFullscreen?.().catch(() => {});
       }
       window.close();
-      toast('Cerrando aplicación…');
-    });
+      setTimeout(() => {
+        toast('Para cerrar esta pestaña del navegador presioná Ctrl + W o Alt + F4.');
+      }, 250);
+    }, '⏻ Confirmar y Salir');
   });
 
   $('#btn-hdmi').addEventListener('click', async () => {
@@ -1902,7 +1886,7 @@
       const [rawDni, rawNombre] = line.split(/[,;\t]/).map((x) => (x || '').trim());
       const d = cleanDni(rawDni);
       const n = titleCaseName(rawNombre);
-      if (!d || d.length < 6 || !n || seen.has(d)) continue;
+      if (!d || d.length < 2 || d.length > 12 || !n || seen.has(d)) continue;
       seen.add(d);
       list.push({ dni: d, nombre: n });
     }

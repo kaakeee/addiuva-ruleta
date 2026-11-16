@@ -98,7 +98,7 @@
                     inputmode="none"
                     readonly
                     placeholder="Ej: 35123456"
-                    maxlength="11"
+                    maxlength="12"
                     autocomplete="off"
                   />
                 </div>
@@ -187,7 +187,7 @@
           <div class="k-step" id="k-step-confirm">
             <div class="eyebrow">Paso 2 de 2 · Verificá tus datos</div>
             <h2>¿Están bien escritos tus datos?</h2>
-            <p class="k-sub">Revisá que tu DNI y tu nombre sean correctos. Solo se permite <strong>una inscripción por persona</strong>.</p>
+            <p class="k-sub">Revisá que tu DNI y tu nombre sean correctos. Solo se permite <strong>una inscripción por DNI</strong>.</p>
             <div class="confirm-box">
               <div class="avatar-lg" id="k-conf-avatar">SG</div>
               <div class="confirm-meta">
@@ -243,12 +243,6 @@
               </label>
             </div>
           </div>
-
-          <div class="card feed-card">
-            <div class="eyebrow">Últimas inscripciones</div>
-            <ul class="feed" id="feed"></ul>
-            <div class="feed-empty" id="feed-empty">Sin inscriptos todavía.</div>
-          </div>
         </div>
 
         <div class="wheel-col">
@@ -282,7 +276,6 @@
               <span class="chip chip-gold" id="winners-count">0</span>
             </div>
             <ul class="prize-list" id="winner-list"></ul>
-            <div class="feed-empty" id="winner-list-empty">Todavía no salió ningún ganador. Tocá GIRAR cuando RRHH indique el sorteo por micrófono.</div>
           </div>
         </div>
       </div>
@@ -332,10 +325,10 @@
         </div>
 
         <div class="stats">
-          <div class="card stat accent"><div class="eyebrow">Total inscriptos</div><div class="v" id="st-present">0</div><div class="s" id="st-present-pct">Únicos por DNI + Nombre</div></div>
+          <div class="card stat accent"><div class="eyebrow">Total inscriptos</div><div class="v" id="st-present">0</div><div class="s" id="st-present-pct">Únicos por DNI</div></div>
           <div class="card stat"><div class="eyebrow">En la ruleta</div><div class="v" id="st-wheel">0</div><div class="s">Habilitados para ganar</div></div>
           <div class="card stat"><div class="eyebrow">Ganadores sorteados</div><div class="v" id="st-winners">0</div><div class="s">Rondas confirmadas</div></div>
-          <div class="card stat"><div class="eyebrow">Duplicados bloqueados</div><div class="v" id="st-dupes">0</div><div class="s">Intentos de repetir DNI o Nombre</div></div>
+          <div class="card stat"><div class="eyebrow">Duplicados bloqueados</div><div class="v" id="st-dupes">0</div><div class="s">Intentos de repetir DNI</div></div>
         </div>
 
         <div class="card table-card">

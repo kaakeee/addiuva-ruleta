@@ -27,12 +27,11 @@ Aplicación todo-en-uno para el sorteo de fin de año de **Addiuva** (~100 perso
 
 ## 🛡️ ¿Cómo evita que una persona se inscriba 2 veces?
 
-En el **Modo 1 · Inscripción (Kiosco)** cada asistente se identifica en la PC con su **DNI** y su **Nombre y Apellido Completo** (usando el teclado táctil integrado en pantalla sin disparar el teclado de Windows, o el teclado físico). El sistema aplica **triple validación anti-duplicado**:
+En el **Modo 1 · Inscripción (Kiosco)** cada asistente se identifica en la PC con su **DNI** *(entre 2 y 12 números)* y su **Nombre y Apellido Completo** (usando el teclado táctil integrado en pantalla sin disparar el teclado de Windows, o el teclado físico). El sistema aplica **validación anti-duplicado por DNI**:
 
-1. **Bloqueo por DNI único:** Limpia puntos, guiones, espacios y ceros a la izquierda. Si el mismo DNI intenta anotarse de nuevo, **no le genera otro número**: le muestra en pantalla el número que ya tenía asignado y suma +1 al contador de *Duplicados bloqueados*.
-2. **Bloqueo por Nombre y Apellido Completo (incluso invertido):** Normaliza mayúsculas y tildes, y compara tanto el orden normal (`Sofía González`) como el orden invertido (`González Sofía`). Si alguien intenta anotarse por segunda vez cambiando el DNI pero con el mismo nombre y apellido, el sistema bloquea el registro.
-3. **Paso de confirmación (“¿Están bien escritos tus datos?”):** Antes de asignar el número, muestra el DNI formateado y el nombre en grande para confirmar.
-4. **Padrón oficial opcional:** Desde `3. Admin / Datos` se puede pegar la lista de empleados (`DNI, Nombre`) y activar *“Validar contra padrón pre-cargado”* para permitir únicamente DNIs de la empresa.
+1. **Bloqueo por DNI único (2 a 12 números):** Limpia puntos, guiones o espacios. Si el mismo DNI intenta anotarse de nuevo, **no le genera otro número**: le muestra en pantalla el número que ya tenía asignado y suma +1 al contador de *Duplicados bloqueados*. Dos personas con el mismo nombre y distinto DNI sí pueden inscribirse.
+2. **Paso de confirmación (“¿Están bien escritos tus datos?”):** Antes de asignar el número, muestra el DNI formateado y el nombre en grande para confirmar.
+3. **Padrón oficial opcional:** Desde `3. Admin / Datos` se puede pegar la lista de empleados (`DNI, Nombre`) y activar *“Validar contra padrón pre-cargado”* para permitir únicamente DNIs de la empresa.
 
 ---
 

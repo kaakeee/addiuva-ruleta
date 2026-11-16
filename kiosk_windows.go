@@ -36,6 +36,9 @@ const (
 	wsMaxBox     = 0x00010000
 	wsSysMenu    = 0x00080000
 
+	wmClose          = 0x0010
+	processTerminate = 0x0001
+
 	hdmiWindowTitlePrefix = "Addiuva · Pantalla HDMI Ruleta"
 	kioskWindowTitleMatch = "Addiuva · Kiosco"
 )
@@ -67,10 +70,12 @@ func (m monitorRect) width() int32  { return m.Right - m.Left }
 func (m monitorRect) height() int32 { return m.Bottom - m.Top }
 
 var (
-	kernel32                      = syscall.NewLazyDLL("kernel32.dll")
-	procSetThreadExecState        = kernel32.NewProc("SetThreadExecutionState")
-	procCreateMutexW              = kernel32.NewProc("CreateMutexW")
-	procCloseHandle               = kernel32.NewProc("CloseHandle")
+	kernel32               = syscall.NewLazyDLL("kernel32.dll")
+	procSetThreadExecState = kernel32.NewProc("SetThreadExecutionState")
+	procCreateMutexW       = kernel32.NewProc("CreateMutexW")
+	procCloseHandle        = kernel32.NewProc("CloseHandle")
+	procOpenProcess        = kernel32.NewProc("OpenProcess")
+	procTerminateProcess   = kernel32.NewProc("TerminateProcess")
 
 	user32                        = syscall.NewLazyDLL("user32.dll")
 	procSetProcessDpiAwarenessCtx = user32.NewProc("SetProcessDpiAwarenessContext")
@@ -83,17 +88,21 @@ var (
 	procSetWindowPos              = user32.NewProc("SetWindowPos")
 	procShowWindow                = user32.NewProc("ShowWindow")
 	procSetForegroundWindow       = user32.NewProc("SetForegroundWindow")
+	procPostMessageW              = user32.NewProc("PostMessageW")
+	procGetWindowThreadProcessId  = user32.NewProc("GetWindowThreadProcessId")
 	procKeybdEvent                = user32.NewProc("keybd_event")
 	procGetWindowLongPtrW         = user32.NewProc("GetWindowLongPtrW")
 	procSetWindowLongPtrW         = user32.NewProc("SetWindowLongPtrW")
 
-	shcore                        = syscall.NewLazyDLL("shcore.dll")
-	procSetProcessDpiAwareness    = shcore.NewProc("SetProcessDpiAwareness")
+	shcore                     = syscall.NewLazyDLL("shcore.dll")
+	procSetProcessDpiAwareness = shcore.NewProc("SetProcessDpiAwareness")
 
-	winMu           sync.Mutex
-	collectedMons   []monitorRect
-	foundHwnd       uintptr
-	findTitleNeedle string
+	winMu            sync.Mutex
+	collectedMons    []monitorRect
+	foundHwnd        uintptr
+	findTitleNeedle  string
+	collectedHwnds   []uintptr
+	findTitleNeedles []string
 
 	monEnumCb = syscall.NewCallback(func(hMon, hdc, lprc, lparam uintptr) uintptr {
 		var mi winMonitorInfo
@@ -123,6 +132,21 @@ var (
 			if strings.Contains(title, findTitleNeedle) {
 				foundHwnd = hwnd
 				return 0
+			}
+		}
+		return 1
+	})
+
+	winCollectEnumCb = syscall.NewCallback(func(hwnd, lparam uintptr) uintptr {
+		var buf [256]uint16
+		n, _, _ := procGetWindowTextW.Call(hwnd, uintptr(unsafe.Pointer(&buf[0])), uintptr(len(buf)))
+		if n > 0 {
+			title := syscall.UTF16ToString(buf[:n])
+			for _, needle := range findTitleNeedles {
+				if needle != "" && strings.Contains(title, needle) {
+					collectedHwnds = append(collectedHwnds, hwnd)
+					break
+				}
 			}
 		}
 		return 1
@@ -322,12 +346,107 @@ func findBrowserExe() string {
 	return ""
 }
 
+func findWindowsByTitles(needles ...string) []uintptr {
+	winMu.Lock()
+	defer winMu.Unlock()
+	collectedHwnds = nil
+	findTitleNeedles = needles
+	_, _, _ = procEnumWindows.Call(winCollectEnumCb, 0)
+	out := make([]uintptr, len(collectedHwnds))
+	copy(out, collectedHwnds)
+	return out
+}
+
+func killProcessTreeWindows(pid uint32) {
+	if pid == 0 || pid == uint32(os.Getpid()) {
+		return
+	}
+	tk := exec.Command("taskkill", "/F", "/T", "/PID", fmt.Sprintf("%d", pid))
+	tk.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	_ = tk.Run()
+	if hProc, _, _ := procOpenProcess.Call(processTerminate, 0, uintptr(pid)); hProc != 0 {
+		_, _, _ = procTerminateProcess.Call(hProc, 0)
+		_, _, _ = procCloseHandle.Call(hProc)
+	}
+}
+
+func cleanupStaleProfileDirs() {
+	tmp := os.TempDir()
+	entries, err := os.ReadDir(tmp)
+	if err != nil {
+		return
+	}
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		name := e.Name()
+		if strings.HasPrefix(name, "addiuva-ruleta-kiosk-") {
+			_ = os.RemoveAll(filepath.Join(tmp, name))
+		}
+	}
+}
+
+func closeAppWindows(kmd *exec.Cmd, hdmiCmd *exec.Cmd, profileDir string) {
+	pids := make(map[uint32]struct{})
+	if kmd != nil && kmd.Process != nil && kmd.Process.Pid > 0 {
+		pids[uint32(kmd.Process.Pid)] = struct{}{}
+	}
+	if hdmiCmd != nil && hdmiCmd.Process != nil && hdmiCmd.Process.Pid > 0 {
+		pids[uint32(hdmiCmd.Process.Pid)] = struct{}{}
+	}
+
+	// 1. Cierre ordenado por WM_CLOSE en todas las ventanas Kiosco y HDMI
+	for _, h := range findWindowsByTitles(kioskWindowTitleMatch, hdmiWindowTitlePrefix) {
+		var pid uint32
+		_, _, _ = procGetWindowThreadProcessId.Call(h, uintptr(unsafe.Pointer(&pid)))
+		if pid != 0 && pid != uint32(os.Getpid()) {
+			pids[pid] = struct{}{}
+		}
+		_, _, _ = procPostMessageW.Call(h, wmClose, 0, 0)
+	}
+
+	deadline := time.Now().Add(400 * time.Millisecond)
+	for time.Now().Before(deadline) {
+		if len(findWindowsByTitles(kioskWindowTitleMatch, hdmiWindowTitlePrefix)) == 0 {
+			break
+		}
+		time.Sleep(40 * time.Millisecond)
+	}
+
+	// 2. Forzar cierre del árbol de procesos si alguna ventana (ej. Edge --kiosk) ignoró WM_CLOSE
+	for _, h := range findWindowsByTitles(kioskWindowTitleMatch, hdmiWindowTitlePrefix) {
+		var pid uint32
+		_, _, _ = procGetWindowThreadProcessId.Call(h, uintptr(unsafe.Pointer(&pid)))
+		if pid != 0 && pid != uint32(os.Getpid()) {
+			pids[pid] = struct{}{}
+		}
+	}
+
+	for pid := range pids {
+		killProcessTreeWindows(pid)
+	}
+	if hdmiCmd != nil && hdmiCmd.Process != nil {
+		_ = hdmiCmd.Process.Kill()
+	}
+	if kmd != nil && kmd.Process != nil {
+		_ = kmd.Process.Kill()
+	}
+
+	if profileDir != "" {
+		time.Sleep(120 * time.Millisecond)
+		_ = os.RemoveAll(profileDir)
+		_ = os.RemoveAll(profileDir + "-hdmi")
+	}
+}
+
 func launchKioskBrowser(url string, profileDir string) *exec.Cmd {
 	exe := findBrowserExe()
 	if exe != "" {
 		args := []string{
 			"--kiosk", url,
 			"--edge-kiosk-type=fullscreen",
+			"--new-window",
 			"--no-first-run",
 			"--no-default-browser-check",
 			"--disable-pinch",
@@ -348,7 +467,7 @@ func launchKioskBrowser(url string, profileDir string) *exec.Cmd {
 	return nil
 }
 
-func launchHdmiWindow(url string, profileDir string) HdmiDisplayInfo {
+func launchHdmiWindow(url string, profileDir string) (HdmiDisplayInfo, *exec.Cmd) {
 	target, info := pickHdmiMonitor()
 
 	// Si ya hay una ventana HDMI abierta y se conectó la TV recién, moverla directo a la TV
@@ -361,7 +480,7 @@ func launchHdmiWindow(url string, profileDir string) HdmiDisplayInfo {
 				_, _, _ = procSetForegroundWindow.Call(h)
 			}
 		}(existing, target, info.HasSecondary)
-		return info
+		return info, nil
 	}
 
 	hdmiProfile := profileDir + "-hdmi"
@@ -387,7 +506,10 @@ func launchHdmiWindow(url string, profileDir string) HdmiDisplayInfo {
 		} else {
 			args = append(args, "--window-size=1280,720")
 		}
-		_ = exec.Command(exe, args...).Start()
+		cmd := exec.Command(exe, args...)
+		if err := cmd.Start(); err != nil {
+			return info, nil
+		}
 
 		if info.HasSecondary {
 			go func(m monitorRect) {
@@ -402,10 +524,10 @@ func launchHdmiWindow(url string, profileDir string) HdmiDisplayInfo {
 				}
 			}(target)
 		}
-		return info
+		return info, cmd
 	}
 
 	_ = exec.Command("rundll32", "url.dll,FileProtocolHandler", url).Start()
-	return info
+	return info, nil
 }
 

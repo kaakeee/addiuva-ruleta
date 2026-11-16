@@ -23,10 +23,21 @@ func keepSystemAwake(stop <-chan struct{}) {
 	<-stop
 }
 
+func cleanupStaleProfileDirs() {}
+
+func closeAppWindows(kmd *exec.Cmd, hdmiCmd *exec.Cmd, profileDir string) {
+	if hdmiCmd != nil && hdmiCmd.Process != nil {
+		_ = hdmiCmd.Process.Kill()
+	}
+	if kmd != nil && kmd.Process != nil {
+		_ = kmd.Process.Kill()
+	}
+}
+
 func launchKioskBrowser(url string, profileDir string) *exec.Cmd {
 	return nil
 }
 
-func launchHdmiWindow(url string, profileDir string) HdmiDisplayInfo {
-	return getHdmiDisplayInfo()
+func launchHdmiWindow(url string, profileDir string) (HdmiDisplayInfo, *exec.Cmd) {
+	return getHdmiDisplayInfo(), nil
 }

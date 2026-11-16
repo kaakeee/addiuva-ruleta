@@ -58,12 +58,11 @@ ATAJOS DE TECLADO BLUETOOTH (SIN TOUCH NI MOUSE)
 
 CÓMO EVITA INSCRIPCIONES DUPLICADAS
 -----------------------------------
-El sistema aplica triple validación automática:
-1. Por DNI único (sin importar si escriben puntos o espacios). Si un DNI
-   ya se inscribió, no genera otro número y le recuerda el que ya tiene.
-2. Por Nombre y Apellido completo (incluso si invierten el orden "Apellido
-   Nombre" e intentan poner otro DNI distinto).
-3. Opcional: desde "3. Admin / Datos" podés pegar el padrón oficial de
+El sistema valida por DNI único (entre 2 y 12 números):
+1. Sin importar si escriben puntos o espacios, si un mismo DNI ya se
+   inscribió no genera otro número y le recuerda el que ya tiene
+   (dos personas con el mismo nombre y distinto DNI sí pueden anotarse).
+2. Opcional: desde "3. Admin / Datos" podés pegar el padrón oficial de
    empleados y activar "Validar contra padrón pre-cargado".
 
 

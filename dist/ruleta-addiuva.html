@@ -699,14 +699,6 @@ body:not(.kiosk-locked) .top-actions { margin-left: 0; }
 .stage-mode-switch .switch small { font-size: clamp(11px, 0.78vw, 20px); margin-top: 2px; }
 .stage-mode-switch.is-number-mode .switch small { color: var(--gold); font-weight: 600; }
 
-.feed-card { padding: clamp(14px, 1.5vh, 30px) clamp(16px, 1.4vw, 30px); flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
-.feed { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: clamp(6px, 0.8vh, 18px); overflow: auto; }
-.feed li { display: flex; align-items: center; gap: 10px; font-size: clamp(13px, 0.95vw, 30px); animation: slideIn .35s ease; }
-.feed .num { font-weight: 800; font-variant-numeric: tabular-nums; color: var(--gold); min-width: clamp(42px, 3.2vw, 100px); }
-.feed .who { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
-.feed li.masked .who { color: var(--muted); font-weight: 500; font-style: italic; }
-.feed time { color: var(--muted); font-size: 0.86em; }
-.feed-empty { color: var(--muted); font-size: 13.5px; margin-top: 12px; }
 @keyframes slideIn { from { opacity: 0; transform: translateX(-8px); } to { opacity: 1; transform: none; } }
 
 .wheel-col { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: clamp(14px, 1.8vh, 36px); min-width: 0; min-height: 0; }
@@ -776,7 +768,7 @@ body:not(.kiosk-locked) .top-actions { margin-left: 0; }
 .wheel-hub {
   position: absolute;
   top: 50%; left: 50%;
-  width: 25%;
+  width: 37.5%;
   aspect-ratio: 1;
   padding: 0;
   transform: translate(-50%, -50%);
@@ -792,11 +784,11 @@ body:not(.kiosk-locked) .top-actions { margin-left: 0; }
   transition: transform .2s ease;
 }
 .wheel-hub:hover:not(:disabled) { transform: translate(-50%, -50%) scale(1.05); }
-.wheel-hub .hub-inner { display: flex; flex-direction: column; align-items: center; gap: clamp(4px, 0.8%, 12px); width: 100%; padding: 0 4%; }
+.wheel-hub .hub-inner { display: flex; flex-direction: column; align-items: center; gap: clamp(5px, 1%, 16px); width: 100%; padding: 0 5%; }
 .wheel-hub img { width: 88%; max-width: none; height: auto; }
-.wheel-hub .hub-cta { font-size: clamp(11px, 1.15vw, 40px); font-weight: 800; letter-spacing: 0.18em; color: var(--gold); }
-.wheel-empty { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; z-index: 1; pointer-events: none; }
-.wheel-empty div { max-width: 55%; padding-top: 34%; color: var(--ink-soft); font-size: clamp(13px, 1vw, 28px); }
+.wheel-hub .hub-cta { font-size: clamp(15px, 1.72vw, 60px); font-weight: 800; letter-spacing: 0.18em; color: var(--gold); }
+.wheel-empty { position: absolute; top: 72%; bottom: 7%; left: 16%; right: 16%; display: flex; align-items: center; justify-content: center; text-align: center; z-index: 1; pointer-events: none; }
+.wheel-empty div { max-width: 100%; color: var(--ink-soft); font-size: clamp(12px, 0.95vw, 26px); line-height: 1.35; }
 .spin-hint { position: relative; z-index: 3; font-size: clamp(12px, 0.9vw, 24px); color: var(--muted); display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
 kbd { font-family: inherit; font-size: 0.92em; padding: 2px 7px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--ink-soft); }
 
@@ -1162,7 +1154,7 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
                     inputmode="none"
                     readonly
                     placeholder="Ej: 35123456"
-                    maxlength="11"
+                    maxlength="12"
                     autocomplete="off"
                   />
                 </div>
@@ -1251,7 +1243,7 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
           <div class="k-step" id="k-step-confirm">
             <div class="eyebrow">Paso 2 de 2 · Verificá tus datos</div>
             <h2>¿Están bien escritos tus datos?</h2>
-            <p class="k-sub">Revisá que tu DNI y tu nombre sean correctos. Solo se permite <strong>una inscripción por persona</strong>.</p>
+            <p class="k-sub">Revisá que tu DNI y tu nombre sean correctos. Solo se permite <strong>una inscripción por DNI</strong>.</p>
             <div class="confirm-box">
               <div class="avatar-lg" id="k-conf-avatar">SG</div>
               <div class="confirm-meta">
@@ -1307,12 +1299,6 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
               </label>
             </div>
           </div>
-
-          <div class="card feed-card">
-            <div class="eyebrow">Últimas inscripciones</div>
-            <ul class="feed" id="feed"></ul>
-            <div class="feed-empty" id="feed-empty">Sin inscriptos todavía.</div>
-          </div>
         </div>
 
         <div class="wheel-col">
@@ -1346,7 +1332,6 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
               <span class="chip chip-gold" id="winners-count">0</span>
             </div>
             <ul class="prize-list" id="winner-list"></ul>
-            <div class="feed-empty" id="winner-list-empty">Todavía no salió ningún ganador. Tocá GIRAR cuando RRHH indique el sorteo por micrófono.</div>
           </div>
         </div>
       </div>
@@ -1396,10 +1381,10 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
         </div>
 
         <div class="stats">
-          <div class="card stat accent"><div class="eyebrow">Total inscriptos</div><div class="v" id="st-present">0</div><div class="s" id="st-present-pct">Únicos por DNI + Nombre</div></div>
+          <div class="card stat accent"><div class="eyebrow">Total inscriptos</div><div class="v" id="st-present">0</div><div class="s" id="st-present-pct">Únicos por DNI</div></div>
           <div class="card stat"><div class="eyebrow">En la ruleta</div><div class="v" id="st-wheel">0</div><div class="s">Habilitados para ganar</div></div>
           <div class="card stat"><div class="eyebrow">Ganadores sorteados</div><div class="v" id="st-winners">0</div><div class="s">Rondas confirmadas</div></div>
-          <div class="card stat"><div class="eyebrow">Duplicados bloqueados</div><div class="v" id="st-dupes">0</div><div class="s">Intentos de repetir DNI o Nombre</div></div>
+          <div class="card stat"><div class="eyebrow">Duplicados bloqueados</div><div class="v" id="st-dupes">0</div><div class="s">Intentos de repetir DNI</div></div>
         </div>
 
         <div class="card table-card">
@@ -1511,9 +1496,8 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
 /* =========================================================
    Addiuva · Kiosco de Inscripción (DNI + Nombre) y Ruleta
    ---------------------------------------------------------
-   - Identificación única por DNI + Nombre y Apellido completo
-   - Triple blindaje anti-duplicado (DNI, Nombre exacto y
-     Nombre con orden de palabras invertido)
+   - Identificación por DNI (entre 2 y 12 números) + Nombre y Apellido
+   - Bloqueo anti-duplicado únicamente por DNI
    - La misma App genera la Ruleta del sorteo
    - Bloqueo Kiosco a pantalla completa con contraseña +
      Screen Wake Lock (mantiene la PC encendida)
@@ -1566,7 +1550,7 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
   }
 
   /* ---------------- Normalización estricta de DNI y Nombre ---------------- */
-  const cleanDni = (raw) => String(raw || '').replace(/\D/g, '').replace(/^0+/, '');
+  const cleanDni = (raw) => String(raw || '').replace(/\D/g, '');
   const formatDni = (dni) => {
     const d = cleanDni(dni);
     return d.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
@@ -1582,10 +1566,6 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
     .replace(/[^a-z\s]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
-  const sortedWordsKey = (raw) => {
-    const words = normName(raw).split(' ').filter(Boolean);
-    return words.slice().sort().join('|');
-  };
   const titleCaseName = (raw) => String(raw || '')
     .replace(/\s+/g, ' ')
     .trim()
@@ -1831,11 +1811,11 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
   const nextRoundNum = (draws = state.draws || []) =>
     draws.reduce((m, d) => Math.max(m, Number(d.round) || 0), 0) + 1;
 
-  /* ---------------- Reglas Anti-Duplicado (DNI + Nombre Completo) ---------------- */
+  /* ---------------- Reglas Anti-Duplicado (solo por DNI, 2 a 12 dígitos) ---------------- */
   function validateCandidate(rawDni, rawNombre) {
     const dni = cleanDni(rawDni);
-    if (!dni || dni.length < 6 || dni.length > 10) {
-      return { error: 'Ingresá un número de DNI válido (entre 6 y 10 números, sin puntos).' };
+    if (!dni || dni.length < 2 || dni.length > 12) {
+      return { error: 'Ingresá un número de DNI válido (entre 2 y 12 números, sin puntos).' };
     }
     const nombre = titleCaseName(rawNombre);
     const words = normName(nombre).split(' ').filter((w) => w.length >= 2);
@@ -1851,24 +1831,13 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
       }
     }
 
-    const nName = normName(nombre);
-    const wKey = sortedWordsKey(nombre);
-
-    // 1. ¿Ya existe este DNI?
+    // Bloqueo anti-duplicado únicamente por DNI
     const byDni = state.employees.find((e) => cleanDni(e.dni) === dni);
     if (byDni) {
       return { dupType: 'dni', existing: byDni };
     }
 
-    // 2. ¿Ya existe exactamente este Nombre Completo (o con nombre/apellido invertidos) con otro DNI?
-    const byName = state.employees.find((e) =>
-      normName(e.nombre) === nName || sortedWordsKey(e.nombre) === wKey
-    );
-    if (byName) {
-      return { dupType: 'name', existing: byName };
-    }
-
-    return { ok: true, dni, nombre, nName, wKey };
+    return { ok: true, dni, nombre };
   }
 
   function registerParticipant(rawDni, rawNombre, { persist = true, countDupe = true } = {}) {
@@ -2176,7 +2145,7 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
 
     const seg = TAU / n;
     const useNames = state.config.showNames && n <= 80;
-    const fontSize = Math.max(9, Math.min(R * (useNames ? 0.072 : 0.085), R * seg * (useNames ? 0.48 : 0.62)));
+    const fontSize = Math.max(9, Math.min(R * (useNames ? 0.068 : 0.082), R * seg * (useNames ? 0.45 : 0.58)));
     wctx.font = `700 ${fontSize}px "Segoe UI", system-ui, sans-serif`;
     wctx.textBaseline = 'middle';
 
@@ -2190,7 +2159,7 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
       wctx.rotate(flip ? mid + Math.PI : mid);
       wctx.textAlign = flip ? 'left' : 'right';
       wctx.fillStyle = color === '#FFB26B' ? '#1E1041' : '#FFFFFF';
-      wctx.fillText(label, flip ? -R * 0.94 : R * 0.94, 0, R * 0.57);
+      wctx.fillText(label, flip ? -R * 0.94 : R * 0.94, 0, R * 0.47);
       wctx.restore();
     }
 
@@ -2516,11 +2485,6 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
         : 'Modo números · nombre oculto hasta descubrirlo';
     }
 
-    const recent = pres.slice().sort((a, b) => b.checkin.localeCompare(a.checkin)).slice(0, 8);
-    $('#feed').innerHTML = recent.map((e) =>
-      `<li class="${showNames ? '' : 'masked'}"><span class="num">#${pad(e.numero)}</span><span class="who">${showNames ? esc(e.nombre) : 'Nombre oculto'}</span><time>${fmtTime(e.checkin)}</time></li>`).join('');
-    $('#feed-empty').hidden = recent.length > 0;
-
     const draws = state.draws || [];
     $('#current-round').textContent = `Ronda #${nextRoundNum(draws)}`;
     $('#winners-count').textContent = String(draws.length);
@@ -2531,7 +2495,6 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
       const timeStr = d.at ? `Confirmado · ${fmtTime(d.at)}` : 'Ganador confirmado';
       return `<li class="prize-item winner-item done ${latestCls}"><span class="idx">#${roundNum}</span><span class="pname">#${pad(d.numero)} · ${esc(d.nombre)}</span><span class="pwinner">${timeStr}</span></li>`;
     }).join('');
-    $('#winner-list-empty').hidden = draws.length > 0;
 
     syncWheel();
   }
@@ -2544,7 +2507,7 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
     $('#st-present').textContent = pres.length;
     $('#st-present-pct').textContent = state.config.rosterOnly && state.roster.length
       ? `Padrón activo (${state.roster.length} en lista)`
-      : 'Únicos por DNI + Nombre';
+      : 'Únicos por DNI';
     $('#st-wheel').textContent = elig.length;
     $('#st-winners').textContent = String(draws.length);
     $('#st-dupes').textContent = state.dupes || 0;
@@ -2791,7 +2754,7 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
       const inp = $('#k-dni');
       if (/^[0-9]$/.test(k)) {
         e.preventDefault();
-        if (inp.value.length < 10) { inp.value += k; inp.dispatchEvent(new Event('input')); }
+        if (inp.value.length < 12) { inp.value += k; inp.dispatchEvent(new Event('input')); }
       } else if (k === 'Backspace') {
         e.preventDefault();
         inp.value = inp.value.slice(0, -1);
@@ -2822,7 +2785,7 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
     const inp = $('#k-dni');
     if (k === 'CLEAR') inp.value = '';
     else if (k === 'BACK') inp.value = inp.value.slice(0, -1);
-    else if (inp.value.length < 10) inp.value += k;
+    else if (inp.value.length < 12) inp.value += k;
     inp.dispatchEvent(new Event('input'));
   });
 
@@ -2859,13 +2822,6 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
       save();
       return showTicketScreen(check.existing, { isDup: true });
     }
-    if (check.dupType === 'name') {
-      state.dupes = (state.dupes || 0) + 1;
-      save();
-      return showKioskError(
-        `⛔ Ya existe una inscripción para «${check.existing.nombre}» (N.º #${pad(check.existing.numero)}, DNI ${maskDni(check.existing.dni)}). No se permite inscribirse dos veces con otro DNI.`
-      );
-    }
 
     pendingCandidate = { dni: check.dni, nombre: check.nombre };
     $('#k-conf-avatar').textContent = initials(check.nombre);
@@ -2887,10 +2843,6 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
       setKioskStep('form');
       return showKioskError(res.error);
     }
-    if (res.dup && res.dupType === 'name') {
-      setKioskStep('form');
-      return showKioskError(`⛔ «${res.emp.nombre}» ya está inscripto/a con el número #${pad(res.emp.numero)}.`);
-    }
     showTicketScreen(res.emp, { isDup: !!res.dup });
   });
 
@@ -2900,10 +2852,11 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
   let authCallback = null;
   let authReturnFocus = null;
 
-  function openAuthModal(subtitle, onSuccess) {
+  function openAuthModal(subtitle, onSuccess, submitLabel = 'Desbloquear') {
     authReturnFocus = document.activeElement;
     authCallback = onSuccess;
     $('#auth-sub').textContent = subtitle || 'Ingresá la contraseña de Administrador para continuar.';
+    $('#auth-submit').textContent = submitLabel || 'Desbloquear';
     $('#auth-input').value = '';
     $('#auth-error').classList.remove('show');
     $('#auth-overlay').classList.add('show');
@@ -2912,6 +2865,7 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
 
   function closeAuthModal({ restore = true } = {}) {
     $('#auth-overlay').classList.remove('show');
+    $('#auth-submit').textContent = 'Desbloquear';
     authCallback = null;
     const rf = authReturnFocus;
     authReturnFocus = null;
@@ -3031,21 +2985,36 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
 
   $('#btn-quit-app').addEventListener('click', () => {
     openAuthModal('Confirmá la contraseña para cerrar el Kiosco y salir al escritorio de Windows.', async (enteredPass) => {
-      if (hasNativeServer) {
+      const isHttp = /^https?:$/.test(location.protocol);
+      if (hasNativeServer || isHttp) {
         try {
-          await fetch('/api/quit', {
+          const res = await fetch('/api/quit', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ password: enteredPass })
           });
+          if (res.status === 403) {
+            toast('⚠️ Contraseña incorrecta en el servidor.');
+            return;
+          }
+          if (res.ok) {
+            toast('Cerrando aplicación…');
+            if (document.fullscreenElement) {
+              document.exitFullscreen?.().catch(() => {});
+            }
+            window.close();
+            return;
+          }
         } catch (_) {}
       }
       if (document.fullscreenElement) {
         document.exitFullscreen?.().catch(() => {});
       }
       window.close();
-      toast('Cerrando aplicación…');
-    });
+      setTimeout(() => {
+        toast('Para cerrar esta pestaña del navegador presioná Ctrl + W o Alt + F4.');
+      }, 250);
+    }, '⏻ Confirmar y Salir');
   });
 
   $('#btn-hdmi').addEventListener('click', async () => {
@@ -3412,7 +3381,7 @@ td.act .row-acts { display: inline-flex; gap: 6px; justify-content: flex-end; }
       const [rawDni, rawNombre] = line.split(/[,;\t]/).map((x) => (x || '').trim());
       const d = cleanDni(rawDni);
       const n = titleCaseName(rawNombre);
-      if (!d || d.length < 6 || !n || seen.has(d)) continue;
+      if (!d || d.length < 2 || d.length > 12 || !n || seen.has(d)) continue;
       seen.add(d);
       list.push({ dni: d, nombre: n });
     }
