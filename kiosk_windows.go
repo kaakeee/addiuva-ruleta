@@ -38,17 +38,26 @@ var (
 	procSetProcessDpiAwarenessCtx = user32.NewProc("SetProcessDpiAwarenessContext")
 	procEnumWindows               = user32.NewProc("EnumWindows")
 	procGetWindowTextW            = user32.NewProc("GetWindowTextW")
+	procIsWindowVisible           = user32.NewProc("IsWindowVisible")
 	procPostMessageW              = user32.NewProc("PostMessageW")
 	procGetWindowThreadProcessId  = user32.NewProc("GetWindowThreadProcessId")
+	procSetForegroundWindow       = user32.NewProc("SetForegroundWindow")
 
 	shcore                     = syscall.NewLazyDLL("shcore.dll")
 	procSetProcessDpiAwareness = shcore.NewProc("SetProcessDpiAwareness")
 
-	winMu            sync.Mutex
-	collectedHwnds   []uintptr
-	findTitleNeedles []string
+	winMu              sync.Mutex
+	collectedHwnds     []uintptr
+	findTitleNeedles   []string
+	requireVisibleHwnd bool
 
 	winCollectEnumCb = syscall.NewCallback(func(hwnd, lparam uintptr) uintptr {
+		if requireVisibleHwnd {
+			vis, _, _ := procIsWindowVisible.Call(hwnd)
+			if vis == 0 {
+				return 1
+			}
+		}
 		var buf [256]uint16
 		n, _, _ := procGetWindowTextW.Call(hwnd, uintptr(unsafe.Pointer(&buf[0])), uintptr(len(buf)))
 		if n > 0 {
@@ -62,6 +71,14 @@ var (
 		}
 		return 1
 	})
+)
+
+type launchMode int
+
+const (
+	launchModeKiosk launchMode = iota
+	launchModeApp
+	launchModeFallback
 )
 
 func initDpiAwareness() {
@@ -83,6 +100,9 @@ func acquireSingleInstance() bool {
 	h, _, lastErr := procCreateMutexW.Call(0, 0, uintptr(unsafe.Pointer(namePtr)))
 	if h != 0 && lastErr == syscall.Errno(183) { // ERROR_ALREADY_EXISTS
 		_, _, _ = procCloseHandle.Call(h)
+		if hwnds := findWindowsByTitles(true, kioskWindowTitleMatch); len(hwnds) > 0 {
+			_, _, _ = procSetForegroundWindow.Call(hwnds[0])
+		}
 		return false
 	}
 	return true
@@ -132,15 +152,20 @@ func findBrowserExe() string {
 	return ""
 }
 
-func findWindowsByTitles(needles ...string) []uintptr {
+func findWindowsByTitles(onlyVisible bool, needles ...string) []uintptr {
 	winMu.Lock()
 	defer winMu.Unlock()
 	collectedHwnds = nil
 	findTitleNeedles = needles
+	requireVisibleHwnd = onlyVisible
 	_, _, _ = procEnumWindows.Call(winCollectEnumCb, 0)
 	out := make([]uintptr, len(collectedHwnds))
 	copy(out, collectedHwnds)
 	return out
+}
+
+func hasVisibleKioskWindow() bool {
+	return len(findWindowsByTitles(true, kioskWindowTitleMatch)) > 0
 }
 
 func killProcessTreeWindows(pid uint32) {
@@ -156,6 +181,18 @@ func killProcessTreeWindows(pid uint32) {
 	}
 }
 
+func prepareProfileDir(profileDir string) {
+	if profileDir == "" {
+		return
+	}
+	_ = os.MkdirAll(profileDir, 0755)
+	// Evitar asistente/reinicio de First Run en Edge y Chrome
+	firstRunPath := filepath.Join(profileDir, "First Run")
+	if _, err := os.Stat(firstRunPath); err != nil {
+		_ = os.WriteFile(firstRunPath, []byte{}, 0644)
+	}
+}
+
 func cleanupStaleProfileDirs() {
 	tmp := os.TempDir()
 	entries, err := os.ReadDir(tmp)
@@ -167,9 +204,18 @@ func cleanupStaleProfileDirs() {
 			continue
 		}
 		name := e.Name()
-		if strings.HasPrefix(name, "addiuva-ruleta-kiosk-") {
-			_ = os.RemoveAll(filepath.Join(tmp, name))
+		if !strings.HasPrefix(name, "addiuva-ruleta-kiosk-") {
+			continue
 		}
+		dir := filepath.Join(tmp, name)
+		// Si un navegador todavía mantiene bloqueado Lockfile en Windows, no tocar ese perfil
+		lockFile := filepath.Join(dir, "Lockfile")
+		if _, err := os.Stat(lockFile); err == nil {
+			if rmErr := os.Remove(lockFile); rmErr != nil {
+				continue
+			}
+		}
+		_ = os.RemoveAll(dir)
 	}
 }
 
@@ -180,7 +226,7 @@ func closeAppWindows(kmd *exec.Cmd, profileDir string) {
 	}
 
 	// 1. Cierre ordenado por WM_CLOSE en la ventana Kiosco
-	for _, h := range findWindowsByTitles(kioskWindowTitleMatch) {
+	for _, h := range findWindowsByTitles(false, kioskWindowTitleMatch) {
 		var pid uint32
 		_, _, _ = procGetWindowThreadProcessId.Call(h, uintptr(unsafe.Pointer(&pid)))
 		if pid != 0 && pid != uint32(os.Getpid()) {
@@ -191,14 +237,14 @@ func closeAppWindows(kmd *exec.Cmd, profileDir string) {
 
 	deadline := time.Now().Add(400 * time.Millisecond)
 	for time.Now().Before(deadline) {
-		if len(findWindowsByTitles(kioskWindowTitleMatch)) == 0 {
+		if len(findWindowsByTitles(false, kioskWindowTitleMatch)) == 0 {
 			break
 		}
 		time.Sleep(40 * time.Millisecond)
 	}
 
 	// 2. Forzar cierre del árbol de procesos si la ventana (ej. Edge --kiosk) ignoró WM_CLOSE
-	for _, h := range findWindowsByTitles(kioskWindowTitleMatch) {
+	for _, h := range findWindowsByTitles(false, kioskWindowTitleMatch) {
 		var pid uint32
 		_, _, _ = procGetWindowThreadProcessId.Call(h, uintptr(unsafe.Pointer(&pid)))
 		if pid != 0 && pid != uint32(os.Getpid()) {
@@ -214,33 +260,53 @@ func closeAppWindows(kmd *exec.Cmd, profileDir string) {
 	}
 
 	if profileDir != "" {
-		time.Sleep(120 * time.Millisecond)
+		time.Sleep(150 * time.Millisecond)
 		_ = os.RemoveAll(profileDir)
+		_ = os.RemoveAll(profileDir + "-app")
 	}
 }
 
-func launchKioskBrowser(url string, profileDir string) *exec.Cmd {
-	exe := findBrowserExe()
-	if exe != "" {
-		args := []string{
-			"--kiosk", url,
-			"--edge-kiosk-type=fullscreen",
-			"--new-window",
-			"--no-first-run",
-			"--no-default-browser-check",
-			"--disable-pinch",
-			"--overscroll-history-navigation=0",
-			"--disable-infobars",
-			"--disable-session-crashed-bubble",
-			"--disable-features=TranslateUI,EdgeSidebar",
-			"--user-data-dir=" + profileDir,
-		}
-		cmd := exec.Command(exe, args...)
-		if err := cmd.Start(); err == nil {
-			return cmd
+func launchKioskBrowser(mode launchMode, url string, profileDir string) *exec.Cmd {
+	if mode != launchModeFallback {
+		if exe := findBrowserExe(); exe != "" {
+			useProfile := profileDir
+			var args []string
+			if mode == launchModeApp {
+				useProfile = profileDir + "-app"
+				args = []string{
+					"--app=" + url,
+					"--start-fullscreen",
+					"--no-first-run",
+					"--no-default-browser-check",
+					"--disable-background-mode",
+					"--disable-pinch",
+					"--overscroll-history-navigation=0",
+					"--disable-features=TranslateUI,EdgeSidebar",
+					"--user-data-dir=" + useProfile,
+				}
+			} else {
+				args = []string{
+					"--kiosk", url,
+					"--edge-kiosk-type=fullscreen",
+					"--no-first-run",
+					"--no-default-browser-check",
+					"--disable-background-mode",
+					"--disable-pinch",
+					"--overscroll-history-navigation=0",
+					"--disable-infobars",
+					"--disable-session-crashed-bubble",
+					"--disable-features=TranslateUI,EdgeSidebar",
+					"--user-data-dir=" + useProfile,
+				}
+			}
+			prepareProfileDir(useProfile)
+			cmd := exec.Command(exe, args...)
+			if err := cmd.Start(); err == nil {
+				return cmd
+			}
 		}
 	}
-	// Fallback al navegador predeterminado si no se encontró ruta directa
+	// Fallback al navegador predeterminado si no se encontró ruta directa o fallaron --kiosk / --app
 	cmd := exec.Command("rundll32", "url.dll,FileProtocolHandler", url)
 	_ = cmd.Start()
 	return nil

@@ -89,6 +89,8 @@
   let syncBusy = false;
   let localSaveSeq = 0;
   let inflightSaves = 0;
+  let initialServerSyncPromise = null;
+  let pendingAllowEmpty = false;
   const seenLocalLiveIds = new Set();
 
   function loadLocal() {
@@ -147,13 +149,37 @@
     try {
       const res = await fetch('/api/state', { cache: 'no-store' });
       if (!res.ok) return false;
+      const verHdr = Number(res.headers.get('X-State-Version') || 0);
       const remote = await res.json();
       if (remote && Array.isArray(remote.employees)) {
         const normalized = normalizeState(remote);
         const firstConnect = !hasNativeServer;
         hasNativeServer = true;
+        if (verHdr > 0) lastStateVersion = Math.max(lastStateVersion, verHdr);
         if (firstConnect && liveSupported === null) runLiveBootstrap = true;
         if (inflightSaves > 0 || saveSeqAtStart !== localSaveSeq) {
+          // Si el usuario llegó a tocar algo antes de completar la carga inicial del disco,
+          // conservar y fusionar todos los inscriptos ya guardados en servidor.
+          if (firstConnect && (normalized.employees.length > 0 || normalized.roster.length > 0 || normalized.draws.length > 0)) {
+            const merged = normalizeState(JSON.parse(JSON.stringify(normalized)));
+            const seenDnis = new Set(merged.employees.map((e) => cleanDni(e.dni)));
+            for (const le of (state.employees || [])) {
+              const ld = cleanDni(le.dni);
+              if (!ld || seenDnis.has(ld)) continue;
+              seenDnis.add(ld);
+              let nextNum = Number(le.numero) || 0;
+              if (!nextNum || merged.employees.some((x) => x.numero === nextNum)) {
+                nextNum = merged.employees.reduce((m, x) => Math.max(m, x.numero || 0), 0) + 1;
+              }
+              merged.seq = Math.max(merged.seq || 0, nextNum);
+              merged.employees.push({ ...le, numero: nextNum });
+            }
+            if ((state.roster || []).length && !merged.roster.length) merged.roster = state.roster;
+            state = merged;
+            lastStateJson = JSON.stringify(state);
+            try { localStorage.setItem(KEY, lastStateJson); } catch (_) {}
+            renderAll();
+          }
           return true;
         }
         const remoteJson = JSON.stringify(normalized);
@@ -213,19 +239,38 @@
     }
   }
 
-  function save() {
+  function save(opts = {}) {
+    const allowEmpty = Boolean(opts && opts.allowEmpty);
     const json = JSON.stringify(state);
     lastStateJson = json;
     localSaveSeq++;
+    const mySeq = localSaveSeq;
+    if (allowEmpty) pendingAllowEmpty = true;
     try { localStorage.setItem(KEY, json); } catch (_) { /* ignore */ }
     if (channel) channel.postMessage({ type: 'sync' });
-    if (hasNativeServer) {
+    if (/^https?:$/.test(location.protocol)) {
       inflightSaves++;
-      fetch('/api/state', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: json
-      })
+      Promise.resolve(initialServerSyncPromise)
+        .then(() => {
+          if (!hasNativeServer || localSaveSeq !== mySeq) return null;
+          const sendAllowEmpty = pendingAllowEmpty;
+          pendingAllowEmpty = false;
+          const url = sendAllowEmpty ? '/api/state?allowEmpty=1' : '/api/state';
+          const body = JSON.stringify(state);
+          return fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body
+          });
+        })
+        .then(async (res) => {
+          if (!res) return;
+          const verHdr = Number(res.headers.get('X-State-Version') || 0);
+          if (verHdr > 0) lastStateVersion = Math.max(lastStateVersion, verHdr);
+          if (res.status === 409) {
+            await syncFromServer();
+          }
+        })
         .catch(() => {})
         .finally(() => { inflightSaves = Math.max(0, inflightSaves - 1); });
     }
@@ -1778,7 +1823,7 @@
         () => {
           state.draws = (state.draws || []).filter((d) => cleanDni(d.dni) !== cleanDni(emp.dni));
           state.employees.splice(idx, 1);
-          save();
+          save({ allowEmpty: state.employees.length === 0 });
           toast(`🗑️ ${emp.nombre} eliminado`);
         }
       );
@@ -1858,7 +1903,7 @@
         state = defaultState();
         state.config.adminPass = keepPass;
         wheel.rotation = 0;
-        save();
+        save({ allowEmpty: true });
         toast('Datos reiniciados a cero');
       }
     );
@@ -1899,5 +1944,5 @@
   setView(initial);
   focusWorkspaceTarget(initial);
   renderAll();
-  syncFromServer();
+  initialServerSyncPromise = syncFromServer();
 })();

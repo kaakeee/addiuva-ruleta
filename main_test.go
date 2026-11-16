@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -15,6 +16,7 @@ import (
 func TestLoadStateFromDiskStripsLegacyPrizes(t *testing.T) {
 	dir := t.TempDir()
 	dataFilePath = filepath.Join(dir, "datos-sorteo-addiuva.json")
+	backupFilePath = filepath.Join(dir, "datos-sorteo-addiuva.bak.json")
 	csvFilePath = filepath.Join(dir, "inscriptos-addiuva.csv")
 
 	legacyJSON := `{
@@ -47,10 +49,14 @@ func TestLoadStateFromDiskStripsLegacyPrizes(t *testing.T) {
 	}
 
 	mu.Lock()
-	err := saveStateLocked()
+	err := saveStateLocked(true)
 	mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
+	}
+
+	if _, err := os.Stat(backupFilePath); err != nil {
+		t.Fatalf("expected backup json to be written, got err: %v", err)
 	}
 
 	csvBytes, err := os.ReadFile(csvFilePath)
@@ -63,6 +69,137 @@ func TestLoadStateFromDiskStripsLegacyPrizes(t *testing.T) {
 	}
 	if !strings.Contains(csvStr, "001,35123456,Sofía González") {
 		t.Fatalf("expected employee row in CSV, got: %q", csvStr)
+	}
+}
+
+func TestLoadStateRecoversFromBackupWhenCorrupt(t *testing.T) {
+	dir := t.TempDir()
+	dataFilePath = filepath.Join(dir, "datos-sorteo-addiuva.json")
+	backupFilePath = filepath.Join(dir, "datos-sorteo-addiuva.bak.json")
+	csvFilePath = filepath.Join(dir, "inscriptos-addiuva.csv")
+
+	mu.Lock()
+	currentState = defaultAppState()
+	currentState.Employees = []Employee{
+		{Dni: "30111222", Nombre: "Laura Pérez", Numero: 1, Checkin: "2026-11-16T20:00:00Z"},
+	}
+	currentState.Seq = 1
+	if err := saveStateLocked(true); err != nil {
+		mu.Unlock()
+		t.Fatal(err)
+	}
+	mu.Unlock()
+
+	// Simular archivo principal truncado / corrupto
+	if err := os.WriteFile(dataFilePath, []byte(`{"employees":[{"dni":`), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	loadStateFromDisk()
+	if len(currentState.Employees) != 1 || currentState.Employees[0].Dni != "30111222" {
+		t.Fatalf("expected recovery from backup file, got %#v", currentState.Employees)
+	}
+}
+
+func TestResolveDataDir(t *testing.T) {
+	root := t.TempDir()
+	normalExeDir := filepath.Join(root, "escritorio-addiuva")
+	tempRoot := filepath.Join(root, "temp")
+	zipExtractDir := filepath.Join(tempRoot, "Temp1_AddiuvaRuleta-Windows-x64.zip")
+	localAppData := filepath.Join(root, "localappdata")
+	readOnlyDir := filepath.Join(root, "readonly")
+
+	for _, d := range []string{normalExeDir, zipExtractDir, localAppData, readOnlyDir} {
+		if err := os.MkdirAll(d, 0755); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if got := resolveDataDir(normalExeDir, tempRoot, localAppData); got != normalExeDir {
+		t.Fatalf("expected writable non-temp dir %q, got %q", normalExeDir, got)
+	}
+
+	expectedFallback := filepath.Join(localAppData, "AddiuvaRuleta")
+	if got := resolveDataDir(zipExtractDir, tempRoot, localAppData); got != expectedFallback {
+		t.Fatalf("expected temp zip dir to fallback to %q, got %q", expectedFallback, got)
+	}
+
+	if err := os.Chmod(readOnlyDir, 0555); err == nil {
+		defer os.Chmod(readOnlyDir, 0755)
+		// En root (uid 0) chmod 0555 sigue permitiendo escribir; solo verificar si realmente no es escribible
+		if !isDirWritable(readOnlyDir) {
+			if got := resolveDataDir(readOnlyDir, tempRoot, localAppData); got != expectedFallback {
+				t.Fatalf("expected read-only dir to fallback to %q, got %q", expectedFallback, got)
+			}
+		}
+	}
+}
+
+func TestApiStateRejectsAccidentalEmptyOverwriteAndAllowsExplicitReset(t *testing.T) {
+	dir := t.TempDir()
+	dataFilePath = filepath.Join(dir, "datos-sorteo-addiuva.json")
+	backupFilePath = filepath.Join(dir, "datos-sorteo-addiuva.bak.json")
+	csvFilePath = filepath.Join(dir, "inscriptos-addiuva.csv")
+
+	mu.Lock()
+	currentState = defaultAppState()
+	currentState.Employees = []Employee{
+		{Dni: "35123456", Nombre: "Sofía González", Numero: 1, Checkin: "2026-11-16T20:00:00Z"},
+		{Dni: "36123456", Nombre: "Juan López", Numero: 2, Checkin: "2026-11-16T20:01:00Z"},
+	}
+	currentState.Seq = 2
+	if err := saveStateLocked(true); err != nil {
+		mu.Unlock()
+		t.Fatal(err)
+	}
+	mu.Unlock()
+
+	mux := buildHTTPMux(nil, "", nil)
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	// 1. Un cliente vacío sin allowEmpty=1 NO debe poder borrar participantes existentes
+	emptyBody := `{"employees":[],"roster":[],"prizes":[],"draws":[],"seq":0,"dupes":0,"config":{"adminPass":"2026","removeWinners":true,"showNames":true,"rosterOnly":false,"sound":true}}`
+	resConflict, err := http.Post(srv.URL+"/api/state", "application/json", strings.NewReader(emptyBody))
+	if err != nil {
+		t.Fatal(err)
+	}
+	resConflict.Body.Close()
+	if resConflict.StatusCode != http.StatusConflict {
+		t.Fatalf("expected 409 Conflict when stale client posts empty state, got %d", resConflict.StatusCode)
+	}
+	mu.Lock()
+	empLen := len(currentState.Employees)
+	mu.Unlock()
+	if empLen != 2 {
+		t.Fatalf("expected 2 employees preserved after rejected overwrite, got %d", empLen)
+	}
+
+	// 2. El botón explícito "Borrar todo" (?allowEmpty=1) sí debe reiniciar y actualizar también el backup
+	resReset, err := http.Post(srv.URL+"/api/state?allowEmpty=1", "application/json", strings.NewReader(emptyBody))
+	if err != nil {
+		t.Fatal(err)
+	}
+	resReset.Body.Close()
+	if resReset.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 OK for explicit ?allowEmpty=1 reset, got %d", resReset.StatusCode)
+	}
+
+	// Al reiniciar desde disco no deben resucitar los participantes borrados desde .bak.json
+	loadStateFromDisk()
+	if len(currentState.Employees) != 0 {
+		t.Fatalf("expected 0 employees persisted after explicit reset, got %d", len(currentState.Employees))
+	}
+	bakRaw, err := os.ReadFile(backupFilePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var bak AppState
+	if err := json.Unmarshal(bakRaw, &bak); err != nil {
+		t.Fatal(err)
+	}
+	if len(bak.Employees) != 0 {
+		t.Fatalf("expected backup to also be cleared on explicit reset, got %d employees", len(bak.Employees))
 	}
 }
 
@@ -116,3 +253,162 @@ func TestApiQuitAuthorization(t *testing.T) {
 		t.Fatalf("expected authorizedQuit to be true")
 	}
 }
+
+type fakeBrowserProc struct {
+	exitAfter time.Duration
+}
+
+func (f fakeBrowserProc) Wait() error {
+	if f.exitAfter > 0 {
+		time.Sleep(f.exitAfter)
+	}
+	return nil
+}
+
+func TestKioskWatchdogNoReloadOnEdgeStubHandoff(t *testing.T) {
+	var launches atomic.Int32
+	var quit atomic.Bool
+	var pollTicks atomic.Int32
+	clientAlive := atomic.Bool{}
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		runKioskWatchdog(kioskWatchdogConfig{
+			handoffGrace:     80 * time.Millisecond,
+			clientStaleAfter: 60 * time.Millisecond,
+			closeDebounce:    40 * time.Millisecond,
+			pollInterval:     5 * time.Millisecond,
+			launch: func(mode launchMode) browserProcess {
+				launches.Add(1)
+				// Simula Edge cerrando el PID launcher inmediatamente tras entregar la URL al proceso hijo
+				go func() {
+					time.Sleep(15 * time.Millisecond)
+					clientAlive.Store(true)
+				}()
+				return fakeBrowserProc{exitAfter: 2 * time.Millisecond}
+			},
+			isQuit: func() bool {
+				return quit.Load()
+			},
+			waitExit: func() {},
+			clientSeenSince: func(ts time.Time) bool {
+				return clientAlive.Load()
+			},
+			clientSeenWithin: func(d time.Duration) bool {
+				if clientAlive.Load() {
+					if pollTicks.Add(1) >= 20 {
+						quit.Store(true)
+					}
+					return true
+				}
+				return false
+			},
+			hasVisibleWindow: func() bool {
+				return clientAlive.Load()
+			},
+		})
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(3 * time.Second):
+		t.Fatal("watchdog did not exit cleanly after quit")
+	}
+
+	if got := launches.Load(); got != 1 {
+		t.Fatalf("expected Edge stub handoff to launch browser exactly ONCE (no reload loop), got %d launches", got)
+	}
+}
+
+func TestKioskWatchdogRelaunchesAfterRealAltF4Close(t *testing.T) {
+	var launches atomic.Int32
+	var quit atomic.Bool
+	clientAlive := atomic.Bool{}
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		runKioskWatchdog(kioskWatchdogConfig{
+			handoffGrace:     80 * time.Millisecond,
+			clientStaleAfter: 20 * time.Millisecond,
+			closeDebounce:    30 * time.Millisecond,
+			pollInterval:     5 * time.Millisecond,
+			launch: func(mode launchMode) browserProcess {
+				n := launches.Add(1)
+				clientAlive.Store(true)
+				if n == 1 {
+					// Simular que a los 25ms el usuario presiona Alt+F4 sin contraseña
+					go func() {
+						time.Sleep(25 * time.Millisecond)
+						clientAlive.Store(false)
+					}()
+				} else if n >= 2 {
+					go func() {
+						time.Sleep(20 * time.Millisecond)
+						quit.Store(true)
+					}()
+				}
+				return fakeBrowserProc{exitAfter: 2 * time.Millisecond}
+			},
+			isQuit:           func() bool { return quit.Load() },
+			waitExit:         func() {},
+			clientSeenSince:  func(ts time.Time) bool { return true },
+			clientSeenWithin: func(d time.Duration) bool { return clientAlive.Load() },
+			hasVisibleWindow: func() bool { return clientAlive.Load() },
+		})
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(3 * time.Second):
+		t.Fatal("watchdog did not relaunch & exit in time")
+	}
+
+	if got := launches.Load(); got != 2 {
+		t.Fatalf("expected relaunch once after genuine Alt+F4 close, got %d launches", got)
+	}
+}
+
+func TestKioskWatchdogCircuitBreakerOnLaunchCrash(t *testing.T) {
+	var modes []launchMode
+	var fallbackWaitCalled atomic.Bool
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		runKioskWatchdog(kioskWatchdogConfig{
+			handoffGrace:     20 * time.Millisecond,
+			clientStaleAfter: 20 * time.Millisecond,
+			closeDebounce:    20 * time.Millisecond,
+			pollInterval:     5 * time.Millisecond,
+			launch: func(mode launchMode) browserProcess {
+				modes = append(modes, mode)
+				if mode == launchModeFallback {
+					return nil
+				}
+				return fakeBrowserProc{exitAfter: 2 * time.Millisecond}
+			},
+			isQuit:           func() bool { return false },
+			waitExit:         func() { fallbackWaitCalled.Store(true) },
+			clientSeenSince:  func(ts time.Time) bool { return false },
+			clientSeenWithin: func(d time.Duration) bool { return false },
+			hasVisibleWindow: func() bool { return false },
+			sleep:            func(d time.Duration) { time.Sleep(2 * time.Millisecond) },
+		})
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(3 * time.Second):
+		t.Fatal("watchdog circuit breaker stuck in loop")
+	}
+
+	if !fallbackWaitCalled.Load() {
+		t.Fatal("expected fallback waitExit to be invoked")
+	}
+	if len(modes) != 3 || modes[0] != launchModeKiosk || modes[1] != launchModeApp || modes[2] != launchModeFallback {
+		t.Fatalf("expected escalation [kiosk, app, fallback], got %#v", modes)
+	}
+}
+
