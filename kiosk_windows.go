@@ -245,6 +245,9 @@ func matchesMonitorRect(r winRect, m monitorRect) bool {
 
 func placeHdmiHwndOnSecondary(hwnd uintptr, target monitorRect) {
 	if r, ok := getWindowRect(hwnd); ok && matchesMonitorRect(r, target) {
+		if kHwnd := findWindowByTitle(kioskWindowTitleMatch); kHwnd != 0 {
+			_, _, _ = procSetForegroundWindow.Call(kHwnd)
+		}
 		return
 	}
 	_, _, _ = procShowWindow.Call(hwnd, swRestore)

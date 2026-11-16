@@ -385,53 +385,186 @@
     return { emp };
   }
 
-  /* ---------------- Audio (WebAudio sintetizado) ---------------- */
+  /* ---------------- Audio sin tildes ni retraso (WebAudio pre-calentado) ---------------- */
   let audioCtx = null;
-  let lastTick = 0;
+  let audioBus = null;
+  let tickBuffer = null;
+  let keepAliveOsc = null;
+  let keepAliveGain = null;
+  let lastTickAudioTime = -1;
+  let lastPointerTickMs = 0;
+  let pointerTickFlip = false;
+  const wheelPointerEl = $('#wheel-pointer');
+
+  function buildTickBuffer(ctx) {
+    const dur = 0.024;
+    const len = Math.max(1, Math.ceil(ctx.sampleRate * dur));
+    const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+    const ch = buf.getChannelData(0);
+    const attack = Math.max(1, Math.floor(ctx.sampleRate * 0.0012));
+    for (let i = 0; i < len; i++) {
+      const t = i / ctx.sampleRate;
+      const env = (i < attack ? i / attack : 1) * Math.exp(-t * 205);
+      const fadeOut = i > len - 32 ? (len - i) / 32 : 1;
+      const freq = 420 + 780 * Math.exp(-t * 170);
+      const body = Math.sin(TAU * freq * t);
+      const click = Math.sin(TAU * 2350 * t) * Math.exp(-t * 420) * 0.45;
+      ch[i] = (body * 0.72 + click) * env * fadeOut * 0.55;
+    }
+    return buf;
+  }
+
+  function syncAudioWarmth() {
+    if (!audioCtx || !keepAliveGain) return;
+    try {
+      const active = !!(state.config.sound && document.visibilityState !== 'hidden');
+      keepAliveGain.gain.setValueAtTime(active ? 0.00001 : 0, audioCtx.currentTime);
+    } catch (_) {}
+  }
+
   function ac() {
     if (!audioCtx) {
       const C = window.AudioContext || window.webkitAudioContext;
-      if (C) audioCtx = new C();
+      if (C) {
+        try {
+          audioCtx = new C({ latencyHint: 'interactive' });
+        } catch (_) {
+          audioCtx = new C();
+        }
+        try {
+          const comp = audioCtx.createDynamicsCompressor();
+          comp.threshold.setValueAtTime(-14, audioCtx.currentTime);
+          comp.knee.setValueAtTime(12, audioCtx.currentTime);
+          comp.ratio.setValueAtTime(6, audioCtx.currentTime);
+          comp.attack.setValueAtTime(0.002, audioCtx.currentTime);
+          comp.release.setValueAtTime(0.12, audioCtx.currentTime);
+          audioBus = audioCtx.createGain();
+          audioBus.gain.setValueAtTime(0.92, audioCtx.currentTime);
+          audioBus.connect(comp).connect(audioCtx.destination);
+          tickBuffer = buildTickBuffer(audioCtx);
+
+          // Mantiene el stream HDMI / Windows audio activo (0 dB efectivos) para evitar retardo de activación
+          keepAliveOsc = audioCtx.createOscillator();
+          keepAliveOsc.frequency.setValueAtTime(1, audioCtx.currentTime);
+          keepAliveGain = audioCtx.createGain();
+          keepAliveGain.gain.setValueAtTime(state.config.sound ? 0.00001 : 0, audioCtx.currentTime);
+          keepAliveOsc.connect(keepAliveGain).connect(audioCtx.destination);
+          keepAliveOsc.start();
+        } catch (_) {}
+      }
     }
-    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+    if (audioCtx && audioCtx.state === 'suspended') {
+      audioCtx.resume().then(syncAudioWarmth).catch(() => {});
+    }
+    syncAudioWarmth();
     return audioCtx;
   }
-  function blip(freq, dur, type = 'triangle', vol = 0.12, when = 0) {
+
+  function warmAudio() {
+    if (!state.config.sound) return;
+    ac();
+  }
+  ['pointerdown', 'touchstart', 'keydown', 'click'].forEach((evName) => {
+    window.addEventListener(evName, warmAudio, { capture: true, passive: true });
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (!audioCtx) return;
+    if (document.visibilityState === 'visible' && state.config.sound) ac();
+    else syncAudioWarmth();
+  });
+
+  function scheduleAudio(fn) {
+    if (!state.config.sound) return;
     const ctx = ac();
-    if (!ctx || !state.config.sound) return;
-    const t = ctx.currentTime + when;
+    if (!ctx) return;
+    if (ctx.state === 'running') {
+      fn(ctx, ctx.currentTime + 0.012);
+    } else {
+      ctx.resume().then(() => {
+        syncAudioWarmth();
+        if (state.config.sound && ctx.state === 'running') {
+          fn(ctx, ctx.currentTime + 0.012);
+        }
+      }).catch(() => {});
+    }
+  }
+
+  function playTone(ctx, baseTime, freq, dur, type = 'triangle', vol = 0.12, when = 0) {
+    const t = baseTime + when;
     const o = ctx.createOscillator();
     const g = ctx.createGain();
+    const safeDur = Math.max(0.015, dur);
     o.type = type;
     o.frequency.setValueAtTime(freq, t);
-    g.gain.setValueAtTime(vol, t);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    o.connect(g).connect(ctx.destination);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(vol, t + 0.004);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + safeDur);
+    o.connect(g).connect(audioBus || ctx.destination);
+    o.onended = () => { try { o.disconnect(); g.disconnect(); } catch (_) {} };
     o.start(t);
-    o.stop(t + dur + 0.02);
+    o.stop(t + safeDur + 0.02);
   }
+
+  function blip(freq, dur, type = 'triangle', vol = 0.12, when = 0) {
+    scheduleAudio((ctx, baseT) => playTone(ctx, baseT, freq, dur, type, vol, when));
+  }
+
   function tickSound({ silent = false } = {}) {
-    const now = performance.now();
-    if (now - lastTick < 45) return;
-    lastTick = now;
-    if (!silent) blip(1700, 0.035, 'square', 0.05);
-    const p = $('#wheel-pointer');
-    p.classList.remove('tick'); void p.offsetWidth; p.classList.add('tick');
+    if (!silent && state.config.sound) {
+      const ctx = ac();
+      if (ctx && ctx.state === 'running' && tickBuffer) {
+        const nowAudio = ctx.currentTime;
+        const target = nowAudio + 0.012;
+        const minNext = (lastTickAudioTime > 0 && lastTickAudioTime < nowAudio + 0.1)
+          ? (lastTickAudioTime + 0.042)
+          : 0;
+        const playAt = Math.max(target, minNext);
+        if (playAt - nowAudio <= 0.04) {
+          lastTickAudioTime = playAt;
+          const src = ctx.createBufferSource();
+          const g = ctx.createGain();
+          src.buffer = tickBuffer;
+          src.playbackRate.setValueAtTime(0.97 + Math.random() * 0.06, playAt);
+          g.gain.setValueAtTime(0.32, playAt);
+          src.connect(g).connect(audioBus || ctx.destination);
+          src.onended = () => { try { src.disconnect(); g.disconnect(); } catch (_) {} };
+          src.start(playAt);
+        }
+      }
+    }
+    if (wheelPointerEl) {
+      const nowMs = performance.now();
+      if (nowMs - lastPointerTickMs >= 42) {
+        lastPointerTickMs = nowMs;
+        pointerTickFlip = !pointerTickFlip;
+        wheelPointerEl.classList.remove(pointerTickFlip ? 'tick-b' : 'tick-a');
+        wheelPointerEl.classList.add(pointerTickFlip ? 'tick-a' : 'tick-b');
+      }
+    }
   }
+
   function chimeOk() {
-    blip(587.33, 0.14, 'triangle', 0.12, 0);
-    blip(880, 0.25, 'triangle', 0.14, 0.11);
+    scheduleAudio((ctx, baseT) => {
+      playTone(ctx, baseT, 587.33, 0.14, 'triangle', 0.12, 0);
+      playTone(ctx, baseT, 880, 0.25, 'triangle', 0.14, 0.11);
+    });
   }
   function chimeWarn() {
-    blip(260, 0.18, 'sawtooth', 0.09, 0);
-    blip(210, 0.22, 'sawtooth', 0.09, 0.15);
+    scheduleAudio((ctx, baseT) => {
+      playTone(ctx, baseT, 260, 0.18, 'sawtooth', 0.085, 0);
+      playTone(ctx, baseT, 210, 0.22, 'sawtooth', 0.085, 0.15);
+    });
   }
   function fanfare() {
-    [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => blip(f, 0.22, 'triangle', 0.14, i * 0.12));
-    [523.25, 659.25, 783.99, 1046.5].forEach((f) => blip(f, 1.1, 'sine', 0.07, 0.55));
+    scheduleAudio((ctx, baseT) => {
+      [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => playTone(ctx, baseT, f, 0.22, 'triangle', 0.14, i * 0.12));
+      [523.25, 659.25, 783.99, 1046.5].forEach((f) => playTone(ctx, baseT, f, 1.05, 'sine', 0.07, 0.52));
+    });
   }
   function suspenseChime() {
-    [329.63, 392.0, 493.88, 659.25].forEach((f, i) => blip(f, 0.2, 'triangle', 0.11, i * 0.11));
+    scheduleAudio((ctx, baseT) => {
+      [329.63, 392.0, 493.88, 659.25].forEach((f, i) => playTone(ctx, baseT, f, 0.2, 'triangle', 0.11, i * 0.11));
+    });
   }
 
   /* ---------------- Ruleta Canvas ---------------- */
@@ -439,6 +572,8 @@
   const wctx = wheelCanvas.getContext('2d');
   const wheel = { rotation: 0, spinning: false, items: [], dirty: false };
   const SEG_COLORS = ['#4B39EC', '#8C46CD', '#E75CE0', '#FFB26B', '#2E1B73', '#B04FD6'];
+  let wheelSlicesCanvas = null;
+  let wheelSlicesKey = '';
   let overlayOpen = false;
   let pendingWinner = null;
   let winnerRevealed = false;
@@ -458,6 +593,43 @@
     let idx = i % SEG_COLORS.length;
     if (n > 1 && i === n - 1 && idx === 0) idx = 2;
     return SEG_COLORS[idx];
+  }
+
+  function getSlicesCanvas(W, n) {
+    const key = `${W}:${n}`;
+    if (wheelSlicesCanvas && wheelSlicesKey === key) return wheelSlicesCanvas;
+    const cv = wheelSlicesCanvas || document.createElement('canvas');
+    cv.width = W;
+    cv.height = W;
+    const c = cv.getContext('2d');
+    const R = W / 2;
+    const seg = TAU / n;
+    c.clearRect(0, 0, W, W);
+    c.save();
+    c.translate(R, R);
+    for (let i = 0; i < n; i++) {
+      const start = i * seg;
+      c.beginPath();
+      c.moveTo(0, 0);
+      c.arc(0, 0, R, start, start + seg);
+      c.closePath();
+      c.fillStyle = segColor(i, n);
+      c.fill();
+      if (n > 1) {
+        c.strokeStyle = 'rgba(18,8,39,0.35)';
+        c.lineWidth = Math.max(1, W / 700);
+        c.stroke();
+      }
+    }
+    const shade = c.createRadialGradient(0, 0, R * 0.55, 0, 0, R);
+    shade.addColorStop(0, 'rgba(0,0,0,0)');
+    shade.addColorStop(1, 'rgba(10,4,30,0.28)');
+    c.fillStyle = shade;
+    c.beginPath(); c.arc(0, 0, R, 0, TAU); c.fill();
+    c.restore();
+    wheelSlicesCanvas = cv;
+    wheelSlicesKey = key;
+    return cv;
   }
 
   function drawWheel() {
@@ -486,43 +658,32 @@
       return;
     }
 
+    const slices = getSlicesCanvas(W, n);
+    wctx.save();
+    wctx.rotate(wheel.rotation);
+    wctx.drawImage(slices, -R, -R, W, W);
+    wctx.restore();
+
     const seg = TAU / n;
     const useNames = state.config.showNames && n <= 80;
     const fontSize = Math.max(9, Math.min(R * (useNames ? 0.072 : 0.085), R * seg * (useNames ? 0.48 : 0.62)));
+    wctx.font = `700 ${fontSize}px "Segoe UI", system-ui, sans-serif`;
+    wctx.textBaseline = 'middle';
 
     for (let i = 0; i < n; i++) {
-      const start = wheel.rotation + i * seg;
-      const color = segColor(i, n);
-      wctx.beginPath();
-      wctx.moveTo(0, 0);
-      wctx.arc(0, 0, R, start, start + seg);
-      wctx.closePath();
-      wctx.fillStyle = color;
-      wctx.fill();
-      if (n > 1) {
-        wctx.strokeStyle = 'rgba(18,8,39,0.35)';
-        wctx.lineWidth = Math.max(1, W / 700);
-        wctx.stroke();
-      }
       const emp = items[i];
+      const color = segColor(i, n);
       const label = useNames ? `${pad(emp.numero)} · ${shortName(emp.nombre)}` : pad(emp.numero);
-      const mid = start + seg / 2;
+      const mid = wheel.rotation + i * seg + seg / 2;
       const flip = Math.cos(mid) < 0;
       wctx.save();
       wctx.rotate(flip ? mid + Math.PI : mid);
       wctx.textAlign = flip ? 'left' : 'right';
-      wctx.textBaseline = 'middle';
-      wctx.font = `700 ${fontSize}px "Segoe UI", system-ui, sans-serif`;
       wctx.fillStyle = color === '#FFB26B' ? '#1E1041' : '#FFFFFF';
-      wctx.fillText(label, flip ? -R * 0.93 : R * 0.93, 0, R * 0.62);
+      wctx.fillText(label, flip ? -R * 0.94 : R * 0.94, 0, R * 0.57);
       wctx.restore();
     }
 
-    const shade = wctx.createRadialGradient(0, 0, R * 0.55, 0, 0, R);
-    shade.addColorStop(0, 'rgba(0,0,0,0)');
-    shade.addColorStop(1, 'rgba(10,4,30,0.28)');
-    wctx.fillStyle = shade;
-    wctx.beginPath(); wctx.arc(0, 0, R, 0, TAU); wctx.fill();
     wctx.restore();
   }
 
@@ -543,6 +704,7 @@
     const n = items.length;
     if (!n || !winnerEmp) return;
     if (!silent) ac();
+    lastTickAudioTime = -1;
 
     const t0 = performance.now();
     let lastIdx = indexAtPointer(startRot, n);
@@ -664,6 +826,7 @@
 
   function showWinner(emp, { silent = false } = {}) {
     const mysteryMode = !state.config.showNames;
+    const hintEl = $('#winner-reveal-hint');
     pendingWinner = { dni: emp.dni, nombre: emp.nombre, numero: emp.numero };
     overlayOpen = true;
     $('#winner-number').textContent = `#${pad(emp.numero)}`;
@@ -680,12 +843,13 @@
       $('#winner-name').hidden = true;
       $('#winner-area').hidden = true;
       $('#winner-reveal').hidden = false;
-      $('#winner-reveal-hint').hidden = false;
+      hintEl.innerHTML = 'Presioná <kbd>Espacio</kbd>, <kbd>Enter</kbd> o tocá el botón para revelar el ganador';
+      hintEl.hidden = false;
       $('#winner-confirm').hidden = true;
       $('#winner-absent').hidden = true;
       $('#winner-overlay').classList.add('show');
       if (!silent) suspenseChime();
-      setTimeout(() => $('#winner-reveal').focus(), 60);
+      $('#winner-reveal').focus({ preventScroll: true });
     } else {
       winnerRevealed = true;
       $('#winner-card').classList.remove('is-mystery');
@@ -697,19 +861,21 @@
       $('#winner-name').hidden = false;
       $('#winner-area').hidden = false;
       $('#winner-reveal').hidden = true;
-      $('#winner-reveal-hint').hidden = true;
+      hintEl.innerHTML = '<kbd>Enter</kbd> o <kbd>Espacio</kbd> confirmar · <kbd>N</kbd> o <kbd>← / →</kbd> ausente';
+      hintEl.hidden = false;
       $('#winner-confirm').hidden = false;
       $('#winner-absent').hidden = false;
       $('#winner-overlay').classList.add('show');
       if (!silent) fanfare();
       confetti();
-      setTimeout(() => $('#winner-confirm').focus(), 60);
+      $('#winner-confirm').focus({ preventScroll: true });
     }
   }
 
   function revealWinner(opts) {
     const remote = Boolean(opts && opts.remote);
     if (!pendingWinner || winnerRevealed) return;
+    const hintEl = $('#winner-reveal-hint');
     winnerRevealed = true;
     revealLockUntil = performance.now() + 260;
     $('#winner-card').classList.remove('is-mystery');
@@ -721,7 +887,8 @@
     $('#winner-name').hidden = false;
     $('#winner-area').hidden = false;
     $('#winner-reveal').hidden = true;
-    $('#winner-reveal-hint').hidden = true;
+    hintEl.innerHTML = '<kbd>Enter</kbd> o <kbd>Espacio</kbd> confirmar · <kbd>N</kbd> o <kbd>← / →</kbd> ausente';
+    hintEl.hidden = false;
     $('#winner-confirm').hidden = false;
     $('#winner-absent').hidden = false;
     if (!remote) {
@@ -729,7 +896,7 @@
       fanfare();
     }
     confetti();
-    setTimeout(() => $('#winner-confirm').focus(), 60);
+    $('#winner-confirm').focus({ preventScroll: true });
   }
 
   function closeWinner() {
@@ -740,7 +907,12 @@
     $('#winner-card').classList.remove('is-mystery', 'is-revealed');
     $('#winner-name').textContent = '';
     $('#winner-area').textContent = '';
-    document.activeElement?.blur?.();
+    $('#spin-btn').disabled = false;
+    if (!document.body.classList.contains('hdmi-clean') && activeView() === 'view-pantalla') {
+      $('#spin-btn').focus({ preventScroll: true });
+    } else {
+      document.activeElement?.blur?.();
+    }
   }
 
   function confirmWinner() {
@@ -901,6 +1073,7 @@
   }
 
   function renderAll() {
+    syncAudioWarmth();
     renderKiosco();
     renderPantalla();
     renderAdmin();
@@ -913,6 +1086,10 @@
   function setKioskStep(stepId) {
     if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
     $$('.k-step').forEach((s) => s.classList.toggle('active', s.id === `k-step-${stepId}`));
+    if (activeView() === 'view-kiosco') {
+      if (stepId === 'confirm') $('#k-confirm-save').focus({ preventScroll: true });
+      else if (stepId === 'ticket') $('#k-next-person').focus({ preventScroll: true });
+    }
   }
 
   function showKioskError(msg) {
@@ -949,6 +1126,9 @@
     hideKioskError();
     setKioskStep('form');
     focusDniField();
+    if (activeView() === 'view-kiosco') {
+      $('#k-dni').focus({ preventScroll: true });
+    }
   }
 
   function showTicketScreen(emp, { isDup = false } = {}) {
@@ -1020,6 +1200,8 @@
     }
   }
   applyOskMode($('#toggle-osk').checked);
+  // Sacar las teclas táctiles del orden Tab para que el teclado Bluetooth navegue sin vueltas
+  $$('#osk button, #auth-numpad button').forEach((b) => { b.tabIndex = -1; });
 
   $('#osk').addEventListener('mousedown', (e) => {
     if (e.target.closest('button')) e.preventDefault();
@@ -1030,39 +1212,71 @@
   });
   $('#osk-to-name').addEventListener('click', () => {
     focusNameField();
-    $('#k-nombre').focus();
+    $('#k-nombre').focus({ preventScroll: true });
   });
   $('#osk-to-dni').addEventListener('click', () => {
     focusDniField();
-    $('#k-dni').focus();
+    $('#k-dni').focus({ preventScroll: true });
   });
 
-  // Soporte de teclado físico incluso cuando los campos están en readonly (para evitar el teclado táctil de Windows)
+  // Soporte de teclado físico incluso cuando los campos están en readonly (sin atrapar Tab ni botones)
   document.addEventListener('keydown', (e) => {
     if (activeView() !== 'view-kiosco') return;
-    if (!$('#k-step-form').classList.contains('active')) return;
     if ($('#auth-overlay').classList.contains('show')) return;
     if ($('#confirm-overlay').classList.contains('show')) return;
-    if (!$('#toggle-osk').checked) return; // si OSK apagado, el input nativo maneja todo
     if (e.ctrlKey || e.altKey || e.metaKey) return;
 
-    const dniFocused = $('#k-dni').classList.contains('focused');
+    const ae = document.activeElement;
     const k = e.key;
-    if (k === 'Tab') {
-      e.preventDefault();
-      if (dniFocused) focusNameField();
-      else focusDniField();
+
+    if ($('#k-step-confirm').classList.contains('active')) {
+      const stale = ae && ae !== document.body && ae.closest('.k-step:not(.active)');
+      const onStepBtn = ae === $('#k-back-edit') || ae === $('#k-confirm-save') || !ae || ae === document.body || !!stale;
+      if (!onStepBtn) return;
+      if (k === 'Escape') { e.preventDefault(); $('#k-back-edit').click(); return; }
+      if (k === 'ArrowLeft' || k === 'ArrowRight') {
+        e.preventDefault();
+        const next = ae === $('#k-back-edit') ? $('#k-confirm-save') : $('#k-back-edit');
+        next.focus({ preventScroll: true });
+        return;
+      }
+      if (k === 'Enter' && ae !== $('#k-back-edit')) {
+        e.preventDefault();
+        $('#k-confirm-save').click();
+      }
       return;
     }
+
+    if ($('#k-step-ticket').classList.contains('active')) {
+      if (k === 'Escape' || ((k === 'Enter' || k === ' ') && (!ae || ae === document.body))) {
+        e.preventDefault();
+        resetKioskForm();
+      }
+      return;
+    }
+
+    if (!$('#k-step-form').classList.contains('active')) return;
+    const stale = ae && ae !== document.body && ae.closest('.k-step:not(.active)');
+    const onKioskField = ae === $('#k-dni') || ae === $('#k-nombre') || !ae || ae === document.body || ae === document.documentElement || !!stale;
+    if (!onKioskField) return;
+
+    const dniFocused = ae === $('#k-nombre')
+      ? false
+      : (ae === $('#k-dni') ? true : $('#k-dni').classList.contains('focused'));
+
     if (k === 'Enter') {
       e.preventDefault();
       if (dniFocused && !$('#k-nombre').value.trim()) {
         focusNameField();
+        $('#k-nombre').focus({ preventScroll: true });
       } else {
         $('#k-form').requestSubmit();
       }
       return;
     }
+
+    if (!$('#toggle-osk').checked) return;
+
     if (dniFocused) {
       const inp = $('#k-dni');
       if (/^[0-9]$/.test(k)) {
@@ -1152,6 +1366,8 @@
 
   $('#k-back-edit').addEventListener('click', () => {
     setKioskStep('form');
+    focusDniField();
+    requestAnimationFrame(() => $('#k-dni').focus({ preventScroll: true }));
   });
 
   $('#k-confirm-save').addEventListener('click', () => {
@@ -1172,19 +1388,26 @@
 
   /* ---------------- Bloqueo Kiosco y Contraseña de Administrador ---------------- */
   let authCallback = null;
+  let authReturnFocus = null;
 
   function openAuthModal(subtitle, onSuccess) {
+    authReturnFocus = document.activeElement;
     authCallback = onSuccess;
     $('#auth-sub').textContent = subtitle || 'Ingresá la contraseña de Administrador para continuar.';
     $('#auth-input').value = '';
     $('#auth-error').classList.remove('show');
     $('#auth-overlay').classList.add('show');
-    setTimeout(() => $('#auth-input').focus(), 50);
+    $('#auth-input').focus({ preventScroll: true });
   }
 
-  function closeAuthModal() {
+  function closeAuthModal({ restore = true } = {}) {
     $('#auth-overlay').classList.remove('show');
     authCallback = null;
+    const rf = authReturnFocus;
+    authReturnFocus = null;
+    if (restore && rf && typeof rf.focus === 'function' && document.contains(rf)) {
+      rf.focus({ preventScroll: true });
+    }
   }
 
   // Soporte de teclado físico también en el modal de contraseña (aunque tenga readonly para evitar teclado táctil de Windows)
@@ -1192,9 +1415,24 @@
     if (!$('#auth-overlay').classList.contains('show')) return;
     if (e.ctrlKey || e.altKey || e.metaKey) return;
     const inp = $('#auth-input');
+    const ae = document.activeElement;
     const k = e.key;
     if (k === 'Escape') { e.preventDefault(); closeAuthModal(); return; }
-    if (k === 'Enter') { e.preventDefault(); $('#auth-form').requestSubmit(); return; }
+    if (k === 'Tab') {
+      e.preventDefault();
+      const order = [$('#auth-input'), $('#auth-cancel'), $('#auth-submit')];
+      const idx = Math.max(0, order.indexOf(ae));
+      const next = order[(idx + (e.shiftKey ? order.length - 1 : 1)) % order.length];
+      next.focus({ preventScroll: true });
+      return;
+    }
+    if (k === 'Enter') {
+      e.preventDefault();
+      if (ae === $('#auth-cancel')) closeAuthModal();
+      else $('#auth-form').requestSubmit();
+      return;
+    }
+    if (k === ' ' && (ae === $('#auth-cancel') || ae === $('#auth-submit'))) return;
     if (k === 'Backspace') { e.preventDefault(); inp.value = inp.value.slice(0, -1); $('#auth-error').classList.remove('show'); return; }
     if (k.length === 1 && inp.value.length < 20) {
       e.preventDefault();
@@ -1205,22 +1443,39 @@
 
   /* ---------------- Modal in-app de confirmación ---------------- */
   let confirmCallback = null;
+  let confirmReturnFocus = null;
   function openConfirmModal(title, msg, yesLabel, onConfirm) {
+    confirmReturnFocus = document.activeElement;
     confirmCallback = onConfirm;
     $('#confirm-title').textContent = title;
     $('#confirm-msg').textContent = msg;
     $('#confirm-yes').textContent = yesLabel || 'Confirmar';
     $('#confirm-overlay').classList.add('show');
+    $('#confirm-no').focus({ preventScroll: true });
   }
-  function closeConfirmModal() {
+  function closeConfirmModal({ restore = true } = {}) {
     $('#confirm-overlay').classList.remove('show');
     confirmCallback = null;
+    const rf = confirmReturnFocus;
+    confirmReturnFocus = null;
+    if (restore && rf && typeof rf.focus === 'function' && document.contains(rf)) {
+      rf.focus({ preventScroll: true });
+    }
   }
-  $('#confirm-no').addEventListener('click', closeConfirmModal);
+  $('#confirm-no').addEventListener('click', () => closeConfirmModal());
   $('#confirm-yes').addEventListener('click', () => {
     const cb = confirmCallback;
-    closeConfirmModal();
+    closeConfirmModal({ restore: false });
     if (cb) cb();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (!$('#confirm-overlay').classList.contains('show')) return;
+    if (e.key === 'Escape') { e.preventDefault(); closeConfirmModal(); return; }
+    if (['Tab', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
+      e.preventDefault();
+      const next = document.activeElement === $('#confirm-yes') ? $('#confirm-no') : $('#confirm-yes');
+      next.focus({ preventScroll: true });
+    }
   });
 
   function setKioskLocked(locked) {
@@ -1233,18 +1488,36 @@
     }
   }
 
-  $('#btn-unlock').addEventListener('click', () => {
-    openAuthModal('Desbloqueá el Kiosco para pasar a la Ruleta, administrar participantes o salir a Windows.', () => {
-      setKioskLocked(false);
-      toast('🔓 Modo Administrador desbloqueado');
-    });
-  });
-
-  $('#btn-lock-now').addEventListener('click', () => {
+  function lockKioskNow() {
     if (activeView() === 'view-admin') setView('kiosco');
     setKioskLocked(true);
     toast('🔒 Pantalla bloqueada en modo Kiosco');
-  });
+    if (activeView() === 'view-pantalla') {
+      $('#spin-btn').focus({ preventScroll: true });
+    } else {
+      focusWorkspaceTarget('kiosco');
+    }
+  }
+
+  function openUnlockFlow() {
+    openAuthModal('Desbloqueá el Kiosco para pasar a la Ruleta, administrar participantes o salir a Windows.', () => {
+      setKioskLocked(false);
+      toast('🔓 Modo Administrador desbloqueado');
+      if (activeView() === 'view-pantalla') {
+        $('#spin-btn').focus({ preventScroll: true });
+      } else {
+        $('#tab-kiosco').focus({ preventScroll: true });
+      }
+    });
+  }
+
+  function toggleKioskLock() {
+    if (kioskLocked) openUnlockFlow();
+    else lockKioskNow();
+  }
+
+  $('#btn-unlock').addEventListener('click', openUnlockFlow);
+  $('#btn-lock-now').addEventListener('click', lockKioskNow);
 
   $('#btn-quit-app').addEventListener('click', () => {
     openAuthModal('Confirmá la contraseña para cerrar el Kiosco y salir al escritorio de Windows.', async (enteredPass) => {
@@ -1298,7 +1571,7 @@
     $('#auth-error').classList.remove('show');
   });
 
-  $('#auth-cancel').addEventListener('click', closeAuthModal);
+  $('#auth-cancel').addEventListener('click', () => closeAuthModal());
 
   $('#auth-form').addEventListener('submit', (e) => {
     e.preventDefault();
@@ -1312,11 +1585,42 @@
       return;
     }
     const cb = authCallback;
-    closeAuthModal();
+    closeAuthModal({ restore: false });
     if (cb) cb(val);
   });
 
-  /* ---------------- Navegación entre vistas ---------------- */
+  /* ---------------- Utilidades de teclado y navegación entre vistas ---------------- */
+  const isAltShortcut = (e) => e.altKey && !e.ctrlKey && !e.metaKey &&
+    !(e.getModifierState && e.getModifierState('AltGraph'));
+  const isTextInputEl = (el) => !!el && !el.readOnly &&
+    (/^(TEXTAREA|SELECT)$/.test(el.tagName) ||
+      (el.tagName === 'INPUT' && !['checkbox', 'radio', 'button', 'submit'].includes(el.type)));
+
+  function toggleShowNamesMode(announce = true) {
+    state.config.showNames = !state.config.showNames;
+    save();
+    if (announce) {
+      toast(state.config.showNames
+        ? '👁️ Modo Nombres activo · visible en la ruleta'
+        : '🙈 Modo Números activo · nombre oculto hasta descubrirlo');
+    }
+  }
+
+  function focusWorkspaceTarget(viewName) {
+    if (viewName === 'pantalla') {
+      $('#spin-btn').focus({ preventScroll: true });
+    } else if (viewName === 'admin') {
+      $('#search').focus({ preventScroll: true });
+    } else if ($('#k-step-confirm').classList.contains('active')) {
+      $('#k-confirm-save').focus({ preventScroll: true });
+    } else if ($('#k-step-ticket').classList.contains('active')) {
+      $('#k-next-person').focus({ preventScroll: true });
+    } else {
+      focusDniField();
+      $('#k-dni').focus({ preventScroll: true });
+    }
+  }
+
   function setView(name) {
     if (!['kiosco', 'pantalla', 'admin'].includes(name)) name = 'kiosco';
     $$('.tab').forEach((t) => t.setAttribute('aria-selected', String(t.dataset.view === name)));
@@ -1327,8 +1631,22 @@
   }
   const activeView = () => ($('.view.active') || {}).id;
 
-  $$('.tab').forEach((t) => t.addEventListener('click', () => setView(t.dataset.view)));
-  $('#go-ruleta-btn').addEventListener('click', () => setView('pantalla'));
+  const topTabs = $$('.tab');
+  topTabs.forEach((t) => {
+    t.addEventListener('click', () => setView(t.dataset.view));
+    t.addEventListener('keydown', (e) => {
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+      e.preventDefault();
+      const idx = topTabs.indexOf(t);
+      const next = topTabs[(idx + (e.key === 'ArrowRight' ? 1 : topTabs.length - 1)) % topTabs.length];
+      setView(next.dataset.view);
+      next.focus({ preventScroll: true });
+    });
+  });
+  $('#go-ruleta-btn').addEventListener('click', () => {
+    setView('pantalla');
+    focusWorkspaceTarget('pantalla');
+  });
   window.addEventListener('resize', sizeWheel);
   if ('ResizeObserver' in window) {
     new ResizeObserver(() => sizeWheel()).observe($('#wheel-wrap'));
@@ -1341,55 +1659,174 @@
     else if (pollTick % 5 === 0) syncFromServer();
   }, 220);
 
+  // Activar switches/checkboxes con Enter además de Espacio
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' || e.ctrlKey || e.altKey || e.metaKey) return;
+    if ($('#auth-overlay').classList.contains('show') || $('#confirm-overlay').classList.contains('show') || overlayOpen) return;
+    const ae = document.activeElement;
+    if (ae && ae.tagName === 'INPUT' && ae.type === 'checkbox') {
+      e.preventDefault();
+      ae.click();
+    }
+  });
+
+  // Atajos globales para operar 100% con teclado Bluetooth (incluido bloquear/desbloquear)
+  document.addEventListener('keydown', (e) => {
+    if (document.body.classList.contains('hdmi-clean')) return;
+    if ($('#confirm-overlay').classList.contains('show')) return;
+
+    const kLow = (e.key || '').toLowerCase();
+    const isLockHotkey =
+      e.key === 'F9' ||
+      (isAltShortcut(e) && (kLow === 'b' || kLow === 'l' || e.code === 'KeyB' || e.code === 'KeyL')) ||
+      (e.ctrlKey && e.shiftKey && !e.altKey && !e.metaKey && (kLow === 'l' || e.code === 'KeyL'));
+
+    if (isLockHotkey) {
+      e.preventDefault();
+      e.stopPropagation();
+      if ($('#auth-overlay').classList.contains('show')) closeAuthModal();
+      else toggleKioskLock();
+      return;
+    }
+
+    if (kioskLocked || overlayOpen || $('#auth-overlay').classList.contains('show')) return;
+    if (!isAltShortcut(e)) return;
+
+    if (e.key === '1' || e.code === 'Digit1') {
+      e.preventDefault();
+      setView('kiosco');
+      focusWorkspaceTarget('kiosco');
+    } else if (e.key === '2' || e.code === 'Digit2') {
+      e.preventDefault();
+      setView('pantalla');
+      focusWorkspaceTarget('pantalla');
+    } else if (e.key === '3' || e.code === 'Digit3') {
+      e.preventDefault();
+      setView('admin');
+      focusWorkspaceTarget('admin');
+    } else if (kLow === 'h' || e.code === 'KeyH') {
+      e.preventDefault();
+      $('#btn-hdmi').click();
+    } else if (kLow === 'q' || e.code === 'KeyQ') {
+      e.preventDefault();
+      $('#btn-quit-app').click();
+    } else if (kLow === 'm' || e.code === 'KeyM') {
+      e.preventDefault();
+      toggleShowNamesMode(true);
+    }
+  });
+
   /* ---------------- Eventos de la Ruleta ---------------- */
   $('#spin-btn').addEventListener('click', spin);
   $('#winner-reveal').addEventListener('click', () => revealWinner());
   $('#winner-confirm').addEventListener('click', confirmWinner);
   $('#winner-absent').addEventListener('click', absentWinner);
+  let stageSwitchByPointer = false;
+  $('#stage-show-names').addEventListener('pointerdown', () => { stageSwitchByPointer = true; });
   $('#stage-show-names').addEventListener('change', (e) => {
     state.config.showNames = e.target.checked;
-    e.target.blur();
+    if (stageSwitchByPointer) {
+      e.target.blur();
+      stageSwitchByPointer = false;
+    }
     save();
   });
   document.addEventListener('keydown', (e) => {
     if (activeView() !== 'view-pantalla') return;
-    const ae = document.activeElement;
-    if (ae && (/TEXTAREA|SELECT/.test(ae.tagName) || (ae.tagName === 'INPUT' && ae.type !== 'checkbox'))) return;
     if ($('#auth-overlay').classList.contains('show') || $('#confirm-overlay').classList.contains('show')) return;
+    const ae = document.activeElement;
+    if (isTextInputEl(ae)) return;
+
     if (overlayOpen) {
       if (!winnerRevealed) {
-        if ([' ', 'Enter', 'PageDown', 'ArrowRight', 'ArrowDown'].includes(e.key)) {
+        if (e.key === 'Tab') {
+          e.preventDefault();
+          $('#winner-reveal').focus({ preventScroll: true });
+          return;
+        }
+        if ([' ', 'Enter', 'PageDown', 'ArrowRight', 'ArrowDown'].includes(e.key) &&
+            !e.ctrlKey && !e.altKey && !e.metaKey) {
           e.preventDefault();
           e.stopPropagation();
           revealWinner();
         }
         return;
       }
-      if (e.key === 'Enter' && performance.now() > revealLockUntil && ae !== $('#winner-absent')) {
+      if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Tab'].includes(e.key)) {
+        e.preventDefault();
+        const nextBtn = ae === $('#winner-absent') ? $('#winner-confirm') : $('#winner-absent');
+        nextBtn.focus({ preventScroll: true });
+        return;
+      }
+      if (!e.ctrlKey && !e.altKey && !e.metaKey &&
+          ['n', 'N', 'x', 'X', 'Delete', 'Backspace'].includes(e.key)) {
         e.preventDefault();
         e.stopPropagation();
-        confirmWinner();
+        absentWinner();
+        return;
+      }
+      if (!e.ctrlKey && !e.altKey && !e.metaKey && [' ', 'Enter', 'PageDown'].includes(e.key)) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (ae === $('#winner-absent')) absentWinner();
+        else confirmWinner();
       }
       return;
     }
-    if ([' ', 'Enter', 'PageDown', 'ArrowRight', 'ArrowDown'].includes(e.key)) {
+
+    if (e.ctrlKey || e.altKey || e.metaKey) return;
+    const kLow = (e.key || '').toLowerCase();
+    if (kLow === 'm') {
+      e.preventDefault();
+      toggleShowNamesMode(true);
+      return;
+    }
+    if (kLow === 'f') {
+      if (!document.fullscreenElement) document.documentElement.requestFullscreen?.().catch(() => {});
+      else if (!kioskLocked) document.exitFullscreen?.();
+      return;
+    }
+    if (e.key === 'Escape') {
+      if (ae !== $('#spin-btn')) {
+        e.preventDefault();
+        $('#spin-btn').focus({ preventScroll: true });
+      }
+      return;
+    }
+    if (e.key === 'PageDown') {
       e.preventDefault();
       e.stopPropagation();
       spin();
+      return;
     }
-    if (e.key === 'f' || e.key === 'F') {
-      if (!document.fullscreenElement) document.documentElement.requestFullscreen?.().catch(() => {});
-      else if (!kioskLocked) document.exitFullscreen?.();
+    // Solo interceptar Espacio / Enter / flechas cuando el foco está en el botón GIRAR o libre,
+    // para que Tab -> 🔒 Bloquear Kiosco / 🖥️ Ventana HDMI / Mostrar nombres funcionen con Enter/Espacio
+    const spinFocusedOrIdle = !ae || ae === document.body || ae === document.documentElement || ae === $('#spin-btn');
+    if (spinFocusedOrIdle && [' ', 'Enter', 'ArrowRight', 'ArrowDown'].includes(e.key)) {
+      e.preventDefault();
+      e.stopPropagation();
+      spin();
     }
   });
 
   /* ---------------- Eventos del Panel Admin ---------------- */
   $('#search').addEventListener('input', renderAdmin);
-  $$('.seg button').forEach((b) => b.addEventListener('click', () => {
-    filter = b.dataset.filter;
-    $$('.seg button').forEach((x) => x.classList.toggle('on', x === b));
-    renderAdmin();
-  }));
+  const segBtns = $$('.seg button');
+  segBtns.forEach((b) => {
+    b.addEventListener('click', () => {
+      filter = b.dataset.filter;
+      segBtns.forEach((x) => x.classList.toggle('on', x === b));
+      renderAdmin();
+    });
+    b.addEventListener('keydown', (e) => {
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+      e.preventDefault();
+      const idx = segBtns.indexOf(b);
+      const next = segBtns[(idx + (e.key === 'ArrowRight' ? 1 : segBtns.length - 1)) % segBtns.length];
+      next.focus({ preventScroll: true });
+      next.click();
+    });
+  });
 
   $('#emp-body').addEventListener('click', (e) => {
     const b = e.target.closest('button[data-act]');
@@ -1435,6 +1872,12 @@
   $('#sim-10').addEventListener('click', () => simulateParticipants(10));
   $('#sim-50').addEventListener('click', () => simulateParticipants(50));
 
+  $('#cfg-pass').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      $('#cfg-pass-save').click();
+    }
+  });
   $('#cfg-pass-save').addEventListener('click', () => {
     const v = $('#cfg-pass').value.trim();
     if (v.length < 3) return toast('La contraseña debe tener al menos 3 caracteres');
@@ -1445,7 +1888,11 @@
   $('#cfg-remove').addEventListener('change', (e) => { state.config.removeWinners = e.target.checked; save(); });
   $('#cfg-names').addEventListener('change', (e) => { state.config.showNames = e.target.checked; save(); });
   $('#cfg-roster-only').addEventListener('change', (e) => { state.config.rosterOnly = e.target.checked; save(); });
-  $('#cfg-sound').addEventListener('change', (e) => { state.config.sound = e.target.checked; save(); });
+  $('#cfg-sound').addEventListener('change', (e) => {
+    state.config.sound = e.target.checked;
+    syncAudioWarmth();
+    save();
+  });
 
   $('#import-btn').addEventListener('click', () => {
     const lines = $('#import-text').value.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
@@ -1523,7 +1970,7 @@
   } else {
     const initial = location.hash.slice(1) || 'kiosco';
     setView(initial);
-    if (activeView() === 'view-kiosco') focusDniField();
+    focusWorkspaceTarget(initial);
   }
   renderAll();
   syncFromServer();

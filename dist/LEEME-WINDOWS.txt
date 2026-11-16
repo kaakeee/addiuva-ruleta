@@ -45,6 +45,16 @@ CONTRASEÑA DE ADMINISTRADOR (POR DEFECTO: 2026)
        para arrastrar al proyector HDMI en modo "Extender pantalla")
      - "⏻ Salir" (cierra la aplicación de forma autorizada con contraseña)
 
+ATAJOS DE TECLADO BLUETOOTH (SIN TOUCH NI MOUSE)
+------------------------------------------------
+- F9 o Alt+B / Alt+L : Bloquear o desbloquear pantalla Kiosco
+- Alt+1 / Alt+2 / Alt+3 : Cambiar vista (Inscripción / Ruleta / Admin)
+- Alt+H : Enviar Ruleta a la TV HDMI
+- Espacio / Enter : Girar ruleta -> Descubrir nombre -> Confirmar ganador
+- M : Alternar Modo Números / Modo Nombres
+- N (o flechas <- -> + Enter) : Marcar ausente y volver a girar
+- F / Alt+Q : Pantalla completa / Salir a Windows
+
 
 CÓMO EVITA INSCRIPCIONES DUPLICADAS
 -----------------------------------

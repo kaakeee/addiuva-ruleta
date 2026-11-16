@@ -27,15 +27,15 @@
 
     <!-- Navegación (visible cuando el Admin desbloquea con contraseña) -->
     <nav class="tabs" id="admin-tabs" role="tablist" aria-label="Modos de la aplicación">
-      <button class="tab" role="tab" id="tab-kiosco" data-view="kiosco" aria-selected="true">
+      <button class="tab" role="tab" id="tab-kiosco" data-view="kiosco" aria-selected="true" title="Ir a Inscripción (Alt + 1)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><path d="M20 8v6M23 11h-6"/></svg>
         <span>1. Inscripción (Kiosco)</span>
       </button>
-      <button class="tab" role="tab" id="tab-pantalla" data-view="pantalla" aria-selected="false">
+      <button class="tab" role="tab" id="tab-pantalla" data-view="pantalla" aria-selected="false" title="Ir a Generar Ruleta (Alt + 2)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/><path d="M12 2v7M12 15v7M2 12h7M15 12h7"/></svg>
         <span>2. Generar Ruleta</span>
       </button>
-      <button class="tab" role="tab" id="tab-admin" data-view="admin" aria-selected="false">
+      <button class="tab" role="tab" id="tab-admin" data-view="admin" aria-selected="false" title="Ir a Panel Admin / Datos (Alt + 3)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
         <span>3. Admin / Datos</span>
       </button>
@@ -43,16 +43,16 @@
 
     <!-- Acciones de bloqueo / pantalla completa / salir -->
     <div class="top-actions">
-      <button class="btn btn-ghost btn-sm admin-only" id="btn-lock-now" title="Bloquear pantalla para que los asistentes no puedan cambiar de vista ni salir">
+      <button class="btn btn-ghost btn-sm admin-only" id="btn-lock-now" title="Bloquear pantalla (F9 o Alt + B / Alt + L)">
         🔒 Bloquear Kiosco
       </button>
-      <button class="btn btn-ghost btn-sm admin-only" id="btn-hdmi" title="Abrir una segunda ventana limpia solo con la ruleta para arrastrar al proyector HDMI">
+      <button class="btn btn-ghost btn-sm admin-only" id="btn-hdmi" title="Enviar ruleta a la TV HDMI (Alt + H)">
         🖥️ Ventana HDMI
       </button>
-      <button class="btn btn-danger btn-sm admin-only" id="btn-quit-app" title="Cerrar la aplicación y volver al escritorio de Windows">
+      <button class="btn btn-danger btn-sm admin-only" id="btn-quit-app" title="Cerrar la aplicación y volver al escritorio de Windows (Alt + Q)">
         ⏻ Salir
       </button>
-      <button class="lock-trigger" id="btn-unlock" title="Desbloquear con contraseña de administrador para ir a la Ruleta o Configuración">
+      <button class="lock-trigger" id="btn-unlock" title="Desbloquear con contraseña de administrador (F9 o Alt + B / Alt + L)">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
         <span>Admin / Ruleta</span>
       </button>
@@ -272,7 +272,7 @@
               </span>
             </button>
           </div>
-          <div class="spin-hint"><kbd>Toque</kbd> en el centro o <kbd>Espacio</kbd> para girar · <kbd>F</kbd> pantalla completa</div>
+          <div class="spin-hint"><kbd>Espacio</kbd> girar · <kbd>M</kbd> nombres/números · <kbd>F</kbd> pantalla · <kbd>F9</kbd> / <kbd>Alt+B</kbd> bloquear</div>
         </div>
 
         <div class="stage-col">
@@ -290,6 +290,7 @@
       <!-- Modal de Ganador -->
       <div class="overlay" id="winner-overlay" role="dialog" aria-modal="true" aria-labelledby="winner-eyebrow">
         <div class="winner-card" id="winner-card">
+          <img src="assets/logo-addiuva-blanco.png" alt="Addiuva" class="logo-img winner-logo" />
           <div class="eyebrow" id="winner-eyebrow">¡TENEMOS GANADOR!</div>
           <div class="winner-number" id="winner-number"></div>
           <div class="winner-mystery-box" id="winner-mystery-box" hidden>
@@ -371,6 +372,19 @@
               <label class="switch"><span>Mostrar nombres en la ruleta<small>Si se apaga (Modo Números), el nombre ganador queda oculto hasta descubrirlo</small></span><input type="checkbox" id="cfg-names" /></label>
               <label class="switch"><span>Validar contra padrón pre-cargado<small>Solo permite DNIs que estén en la lista importada</small></span><input type="checkbox" id="cfg-roster-only" /></label>
               <label class="switch"><span>Sonidos de giro y celebración<small>Efectos de púa y fanfarria</small></span><input type="checkbox" id="cfg-sound" /></label>
+              <div class="kbd-box" aria-label="Atajos de teclado para usar sin pantalla táctil">
+                <div class="kbd-box-title">⌨️ Control total solo con teclado (Bluetooth)</div>
+                <div class="kbd-grid">
+                  <kbd>F9</kbd><span>o <kbd>Alt+B</kbd> / <kbd>Alt+L</kbd> · Bloquear / Desbloquear</span>
+                  <kbd>Alt+1 / 2 / 3</kbd><span>Cambiar vista (Inscripción / Ruleta / Admin)</span>
+                  <kbd>Alt+H</kbd><span>Enviar Ruleta a TV (<kbd>Ventana HDMI</kbd>)</span>
+                  <kbd>Espacio</kbd><span>Girar · Descubrir nombre · Confirmar</span>
+                  <kbd>M</kbd><span>Alternar Modo Números / Nombres</span>
+                  <kbd>N</kbd><span>o <kbd>← / →</kbd> + <kbd>Enter</kbd> · Marcar Ausente</span>
+                  <kbd>F</kbd><span>Pantalla completa</span>
+                  <kbd>Alt+Q</kbd><span>Salir a Windows</span>
+                </div>
+              </div>
             </div>
           </div>
 
