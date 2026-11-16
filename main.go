@@ -96,7 +96,6 @@ var (
 	csvFilePath    string
 	authorizedQuit bool
 	activeKioskCmd *exec.Cmd
-	activeHdmiCmd  *exec.Cmd
 	wakeStop       = make(chan struct{})
 	wakeStopOnce   sync.Once
 	exitDone       = make(chan struct{})
@@ -182,7 +181,7 @@ func writeCsvBackupLocked() error {
 	return os.WriteFile(csvFilePath, buf.Bytes(), 0644)
 }
 
-func buildHTTPMux(subFS fs.FS, hdmiURL string, profileDir string, onQuit func(kmd, hmd *exec.Cmd)) *http.ServeMux {
+func buildHTTPMux(subFS fs.FS, profileDir string, onQuit func(kmd *exec.Cmd)) *http.ServeMux {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/api/state", func(w http.ResponseWriter, r *http.Request) {
@@ -250,33 +249,6 @@ func buildHTTPMux(subFS fs.FS, hdmiURL string, profileDir string, onQuit func(km
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 	})
 
-	mux.HandleFunc("/api/open-hdmi", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-		info, hmd := launchHdmiWindow(hdmiURL, profileDir)
-		if hmd != nil {
-			mu.Lock()
-			activeHdmiCmd = hmd
-			mu.Unlock()
-		}
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(struct {
-			Ok           bool  `json:"ok"`
-			Monitors     int   `json:"monitors"`
-			HasSecondary bool  `json:"hasSecondary"`
-			Width        int32 `json:"width"`
-			Height       int32 `json:"height"`
-		}{
-			Ok:           true,
-			Monitors:     info.Monitors,
-			HasSecondary: info.HasSecondary,
-			Width:        info.Width,
-			Height:       info.Height,
-		})
-	})
-
 	mux.HandleFunc("/api/quit", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -299,7 +271,6 @@ func buildHTTPMux(subFS fs.FS, hdmiURL string, profileDir string, onQuit func(km
 		alreadyClosing := authorizedQuit
 		authorizedQuit = true
 		kmd := activeKioskCmd
-		hmd := activeHdmiCmd
 		mu.Unlock()
 
 		w.Header().Set("Content-Type", "application/json")
@@ -309,7 +280,7 @@ func buildHTTPMux(subFS fs.FS, hdmiURL string, profileDir string, onQuit func(km
 		}
 
 		if !alreadyClosing && onQuit != nil {
-			go onQuit(kmd, hmd)
+			go onQuit(kmd)
 		}
 	})
 
@@ -348,13 +319,12 @@ func main() {
 	}
 	port := listener.Addr().(*net.TCPAddr).Port
 	kioskURL := fmt.Sprintf("http://127.0.0.1:%d/#kiosco", port)
-	hdmiURL := fmt.Sprintf("http://127.0.0.1:%d/?hdmi=1#pantalla", port)
 	cleanupStaleProfileDirs()
 	profileDir := filepath.Join(os.TempDir(), fmt.Sprintf("addiuva-ruleta-kiosk-%d", os.Getpid()))
 
-	mux := buildHTTPMux(subFS, hdmiURL, profileDir, func(kmd, hmd *exec.Cmd) {
+	mux := buildHTTPMux(subFS, profileDir, func(kmd *exec.Cmd) {
 		time.Sleep(80 * time.Millisecond)
-		closeAppWindows(kmd, hmd, profileDir)
+		closeAppWindows(kmd, profileDir)
 		wakeStopOnce.Do(func() { close(wakeStop) })
 		exitDoneOnce.Do(func() { close(exitDone) })
 		os.Exit(0)

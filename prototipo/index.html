@@ -46,9 +46,6 @@
       <button class="btn btn-ghost btn-sm admin-only" id="btn-lock-now" title="Bloquear pantalla (F9 o Alt + B / Alt + L)">
         🔒 Bloquear Kiosco
       </button>
-      <button class="btn btn-ghost btn-sm admin-only" id="btn-hdmi" title="Enviar ruleta a la TV HDMI (Alt + H)">
-        🖥️ Ventana HDMI
-      </button>
       <button class="btn btn-danger btn-sm admin-only" id="btn-quit-app" title="Cerrar la aplicación y volver al escritorio de Windows (Alt + Q)">
         ⏻ Salir
       </button>
@@ -236,12 +233,6 @@
               <span class="counter-total" id="count-total">inscriptos</span>
             </div>
             <div class="progress"><div id="count-bar"></div></div>
-            <div class="stage-mode-switch">
-              <label class="switch">
-                <span>Mostrar nombres en la ruleta<small id="stage-mode-hint">Modo números · oculta el nombre hasta descubrirlo</small></span>
-                <input type="checkbox" id="stage-show-names" />
-              </label>
-            </div>
           </div>
         </div>
 
@@ -266,7 +257,7 @@
               </span>
             </button>
           </div>
-          <div class="spin-hint"><kbd>Espacio</kbd> girar · <kbd>M</kbd> nombres/números · <kbd>F</kbd> pantalla · <kbd>F9</kbd> / <kbd>Alt+B</kbd> bloquear</div>
+          <div class="spin-hint"><kbd>Espacio</kbd> girar · <kbd>F</kbd> pantalla · <kbd>F9</kbd> / <kbd>Alt+B</kbd> bloquear</div>
         </div>
 
         <div class="stage-col">
@@ -287,7 +278,6 @@
           <div class="eyebrow" id="winner-eyebrow">¡TENEMOS GANADOR!</div>
           <div class="winner-number" id="winner-number"></div>
           <div class="winner-mystery-box" id="winner-mystery-box" hidden>
-            <div class="mystery-badge">🔒 Nombre oculto · Modo suspenso</div>
             <div class="mystery-question" id="mystery-question">¿Quién tiene este número?</div>
           </div>
           <div class="winner-name" id="winner-name"></div>
@@ -370,9 +360,7 @@
                 <div class="kbd-grid">
                   <kbd>F9</kbd><span>o <kbd>Alt+B</kbd> / <kbd>Alt+L</kbd> · Bloquear / Desbloquear</span>
                   <kbd>Alt+1 / 2 / 3</kbd><span>Cambiar vista (Inscripción / Ruleta / Admin)</span>
-                  <kbd>Alt+H</kbd><span>Enviar Ruleta a TV (<kbd>Ventana HDMI</kbd>)</span>
                   <kbd>Espacio</kbd><span>Girar · Descubrir nombre · Confirmar</span>
-                  <kbd>M</kbd><span>Alternar Modo Números / Nombres</span>
                   <kbd>N</kbd><span>o <kbd>← / →</kbd> + <kbd>Enter</kbd> · Marcar Ausente</span>
                   <kbd>F</kbd><span>Pantalla completa</span>
                   <kbd>Alt+Q</kbd><span>Salir a Windows</span>

@@ -35,25 +35,21 @@ En el **Modo 1 · Inscripción (Kiosco)** cada asistente se identifica en la PC 
 
 ---
 
-## 🎡 Cómo pasar de la Inscripción a la Ruleta (Notebook + TV HDMI)
+## 🎡 Cómo pasar de la Inscripción a la Ruleta
 
-1. Conectá el cable HDMI a la TV o proyector y presioná **`Win + P` → Extender** *(así la notebook usa 1920×1200 16:10 y la TV usa 16:9 1080p/4K sin franjas negras)*.
-2. En la esquina superior derecha de la app tocá **`🔒 Admin / Ruleta`** e ingresá la contraseña (**`2026`** por defecto).
+1. Conectá la notebook a la TV o proyector (por ejemplo con **`Win + P`** → *Duplicar* o *Solo segunda pantalla*).
+2. En la esquina superior derecha de la app tocá **`🔒 Admin / Ruleta`** (o presioná **`F9`**) e ingresá la contraseña (**`2026`** por defecto).
 3. Se desbloqueará la barra superior con:
    - **`1. Inscripción (Kiosco)`**: pantalla táctil para que la gente se anote.
    - **`2. Generar Ruleta`**: genera automáticamente la ruleta con todos los inscriptos habilitados, rondas ilimitadas en vivo (para que RRHH anuncie cada sorteo por micrófono), sonido y lluvia de confeti.
-     - **Modo Números (suspenso):** al apagar *“Mostrar nombres en la ruleta”*, los gajos muestran solo el número (`001`, `002`...), la columna lateral oculta los nombres en la TV y, al detenerse en un ganador, muestra primero el **número** con el **nombre oculto** hasta que toques **👁️ Descubrir nombre ganador** (o presiones `Espacio` / `Enter` de nuevo).
-   - **`3. Admin / Datos`**: buscador de inscriptos, eliminación de participantes/ganadores, cambio de contraseña y exportación a CSV/Excel.
-   - **`🖥️ Ventana HDMI`**: envía automáticamente la ruleta en pantalla completa directamente a la TV/proyector 16:9 (`1080p` / `4K`); todos los giros, *“Descubrir nombre”* y confirmaciones de ganadores desde la notebook se sincronizan en vivo en la TV.
-   - **`🔒 Bloquear Kiosco`**: vuelve a ocultar los menús para dejar la PC bloqueada frente al público (también desde la vista Ruleta).
+   - **`3. Admin / Datos`**: buscador de inscriptos, eliminación de participantes/ganadores, configuración (*Mostrar nombres en la ruleta* / Modo Números con nombre oculto hasta descubrirlo, cambio de contraseña, padrón, sonidos) y exportación a CSV/Excel.
+   - **`🔒 Bloquear Kiosco`**: vuelve a ocultar los menús para dejar la pantalla bloqueada frente al público (también desde la vista Ruleta).
    - **`⏻ Salir`**: cierra la aplicación de Windows pidiendo la contraseña.
 
 ### ⌨️ Control total solo con teclado Bluetooth (sin touch ni mouse)
 - **`F9`** o **`Alt+B`** / **`Alt+L`**: Bloquear o desbloquear la pantalla al instante.
 - **`Alt+1` / `Alt+2` / `Alt+3`**: Cambiar entre *Inscripción*, *Ruleta* y *Admin / Datos*.
-- **`Alt+H`**: Abrir / enviar la **Ventana HDMI** a la TV o proyector.
 - **`Espacio`** o **`Enter`**: Girar ruleta → Descubrir nombre (Modo Números) → Confirmar ganador.
-- **`M`**: Alternar entre **Modo Números** y **Modo Nombres**.
 - **`N`** *(o **`←` / `→`** + **`Enter`**)*: Marcar ganador como ausente y girar de nuevo.
 - **`Tab` / `Shift+Tab`**: Moverse entre todos los botones y controles (sin quedar atrapado en teclados táctiles).
 - **`F`** / **`Alt+Q`**: Pantalla completa / Salir a Windows.

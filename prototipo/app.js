@@ -16,7 +16,6 @@
   const TAU = Math.PI * 2;
   const $ = (s, el = document) => el.querySelector(s);
   const $$ = (s, el = document) => Array.from(el.querySelectorAll(s));
-  const isHdmiWindow = new URLSearchParams(location.search).get('hdmi') === '1';
   const channel = 'BroadcastChannel' in window ? new BroadcastChannel('addiuva-ruleta-v2') : null;
 
   /* ---------------- Datos iniciales y nombres de prueba ---------------- */
@@ -267,15 +266,14 @@
   requestWakeLock();
 
   /* ---------------- Bloqueo de atajos de salida en modo Kiosco ---------------- */
-  let kioskLocked = !isHdmiWindow;
+  let kioskLocked = true;
   document.addEventListener('contextmenu', (e) => {
-    if (kioskLocked && !document.body.classList.contains('hdmi-clean')) e.preventDefault();
+    if (kioskLocked) e.preventDefault();
   });
   document.addEventListener('keydown', (e) => {
     const k = e.key;
-    const isHdmi = document.body.classList.contains('hdmi-clean');
-    // En la ventana HDMI (proyector/TV) o modo desbloqueado se permite F11 para pantalla completa
-    if (k === 'F11' && (!kioskLocked || isHdmi)) return;
+    // En modo desbloqueado se permite F11 para pantalla completa
+    if (k === 'F11' && !kioskLocked) return;
     // Bloquear F11 (cuando está bloqueado), F5, F12, Ctrl+R, Ctrl+W, Ctrl+Shift+I, Alt+F4
     if (k === 'F11' || k === 'F5' || k === 'F12' ||
         (e.ctrlKey && ['r', 'R', 'w', 'W', 'u', 'U', 'p', 'P'].includes(k)) ||
@@ -427,7 +425,7 @@
           audioBus.connect(comp).connect(audioCtx.destination);
           tickBuffer = buildTickBuffer(audioCtx);
 
-          // Mantiene el stream HDMI / Windows audio activo (0 dB efectivos) para evitar retardo de activación
+          // Mantiene la salida de audio de Windows activa (0 dB efectivos) para evitar retardo de activación
           keepAliveOsc = audioCtx.createOscillator();
           keepAliveOsc.frequency.setValueAtTime(1, audioCtx.currentTime);
           keepAliveGain = audioCtx.createGain();
@@ -892,7 +890,7 @@
     $('#winner-name').textContent = '';
     $('#winner-area').textContent = '';
     $('#spin-btn').disabled = false;
-    if (!document.body.classList.contains('hdmi-clean') && activeView() === 'view-pantalla') {
+    if (activeView() === 'view-pantalla') {
       $('#spin-btn').focus({ preventScroll: true });
     } else {
       document.activeElement?.blur?.();
@@ -980,15 +978,6 @@
     $('#count-present').textContent = elig.length;
     $('#count-total').textContent = `/ ${pres.length} inscriptos`;
     $('#count-bar').style.width = pres.length ? `${(elig.length / pres.length) * 100}%` : '0';
-    const showNames = !!state.config.showNames;
-    $('#stage-show-names').checked = showNames;
-    $('.stage-mode-switch')?.classList.toggle('is-number-mode', !showNames);
-    const modeHint = $('#stage-mode-hint');
-    if (modeHint) {
-      modeHint.textContent = showNames
-        ? 'Modo nombres · se ve en cada gajo'
-        : 'Modo números · nombre oculto hasta descubrirlo';
-    }
 
     const draws = state.draws || [];
     $('#current-round').textContent = `Ronda #${nextRoundNum(draws)}`;
@@ -1386,9 +1375,10 @@
     const inp = $('#auth-input');
     const ae = document.activeElement;
     const k = e.key;
-    if (k === 'Escape') { e.preventDefault(); closeAuthModal(); return; }
+    if (k === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); closeAuthModal(); return; }
     if (k === 'Tab') {
       e.preventDefault();
+      e.stopImmediatePropagation();
       const order = [$('#auth-input'), $('#auth-cancel'), $('#auth-submit')];
       const idx = Math.max(0, order.indexOf(ae));
       const next = order[(idx + (e.shiftKey ? order.length - 1 : 1)) % order.length];
@@ -1397,14 +1387,19 @@
     }
     if (k === 'Enter') {
       e.preventDefault();
+      e.stopImmediatePropagation();
       if (ae === $('#auth-cancel')) closeAuthModal();
       else $('#auth-form').requestSubmit();
       return;
     }
-    if (k === ' ' && (ae === $('#auth-cancel') || ae === $('#auth-submit'))) return;
-    if (k === 'Backspace') { e.preventDefault(); inp.value = inp.value.slice(0, -1); $('#auth-error').classList.remove('show'); return; }
+    if (k === ' ' && (ae === $('#auth-cancel') || ae === $('#auth-submit'))) {
+      e.stopImmediatePropagation();
+      return;
+    }
+    if (k === 'Backspace') { e.preventDefault(); e.stopImmediatePropagation(); inp.value = inp.value.slice(0, -1); $('#auth-error').classList.remove('show'); return; }
     if (k.length === 1 && inp.value.length < 20) {
       e.preventDefault();
+      e.stopImmediatePropagation();
       inp.value += k;
       $('#auth-error').classList.remove('show');
     }
@@ -1439,11 +1434,16 @@
   });
   document.addEventListener('keydown', (e) => {
     if (!$('#confirm-overlay').classList.contains('show')) return;
-    if (e.key === 'Escape') { e.preventDefault(); closeConfirmModal(); return; }
+    if (e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); closeConfirmModal(); return; }
     if (['Tab', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
       e.preventDefault();
+      e.stopImmediatePropagation();
       const next = document.activeElement === $('#confirm-yes') ? $('#confirm-no') : $('#confirm-yes');
       next.focus({ preventScroll: true });
+      return;
+    }
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.stopImmediatePropagation();
     }
   });
 
@@ -1522,25 +1522,6 @@
     }, '⏻ Confirmar y Salir');
   });
 
-  $('#btn-hdmi').addEventListener('click', async () => {
-    if (hasNativeServer) {
-      try {
-        const r = await fetch('/api/open-hdmi', { method: 'POST' });
-        if (r.ok) {
-          const info = await r.json().catch(() => ({}));
-          if (info && info.hasSecondary) {
-            toast(`📺 Ruleta enviada en pantalla completa a la TV (${info.width}×${info.height}). Controlala desde aquí.`);
-          } else {
-            toast('🖥️ Ventana HDMI abierta · Tocá Win + P → Extender y volvé a pulsar 🖥️ Ventana HDMI para pasarla a la TV.');
-          }
-          return;
-        }
-      } catch (_) {}
-    }
-    window.open(`${location.origin}${location.pathname}?hdmi=1#pantalla`, 'addiuva-hdmi', 'popup,width=1280,height=720');
-    toast('🖥️ Ventana HDMI abierta · arrastrala a la TV (Win + P → Extender) y presioná F11');
-  });
-
   $('#auth-numpad').addEventListener('mousedown', (e) => {
     if (e.target.closest('button')) e.preventDefault();
   });
@@ -1579,16 +1560,6 @@
   const isTextInputEl = (el) => !!el && !el.readOnly &&
     (/^(TEXTAREA|SELECT)$/.test(el.tagName) ||
       (el.tagName === 'INPUT' && !['checkbox', 'radio', 'button', 'submit'].includes(el.type)));
-
-  function toggleShowNamesMode(announce = true) {
-    state.config.showNames = !state.config.showNames;
-    save();
-    if (announce) {
-      toast(state.config.showNames
-        ? '👁️ Modo Nombres activo · visible en la ruleta'
-        : '🙈 Modo Números activo · nombre oculto hasta descubrirlo');
-    }
-  }
 
   function focusWorkspaceTarget(viewName) {
     if (viewName === 'pantalla') {
@@ -1650,13 +1621,13 @@
     const ae = document.activeElement;
     if (ae && ae.tagName === 'INPUT' && ae.type === 'checkbox') {
       e.preventDefault();
+      e.stopImmediatePropagation();
       ae.click();
     }
   });
 
   // Atajos globales para operar 100% con teclado Bluetooth (incluido bloquear/desbloquear)
   document.addEventListener('keydown', (e) => {
-    if (document.body.classList.contains('hdmi-clean')) return;
     if ($('#confirm-overlay').classList.contains('show')) return;
 
     const kLow = (e.key || '').toLowerCase();
@@ -1667,7 +1638,7 @@
 
     if (isLockHotkey) {
       e.preventDefault();
-      e.stopPropagation();
+      e.stopImmediatePropagation();
       if ($('#auth-overlay').classList.contains('show')) closeAuthModal();
       else toggleKioskLock();
       return;
@@ -1688,15 +1659,9 @@
       e.preventDefault();
       setView('admin');
       focusWorkspaceTarget('admin');
-    } else if (kLow === 'h' || e.code === 'KeyH') {
-      e.preventDefault();
-      $('#btn-hdmi').click();
     } else if (kLow === 'q' || e.code === 'KeyQ') {
       e.preventDefault();
       $('#btn-quit-app').click();
-    } else if (kLow === 'm' || e.code === 'KeyM') {
-      e.preventDefault();
-      toggleShowNamesMode(true);
     }
   });
 
@@ -1705,16 +1670,6 @@
   $('#winner-reveal').addEventListener('click', () => revealWinner());
   $('#winner-confirm').addEventListener('click', confirmWinner);
   $('#winner-absent').addEventListener('click', absentWinner);
-  let stageSwitchByPointer = false;
-  $('#stage-show-names').addEventListener('pointerdown', () => { stageSwitchByPointer = true; });
-  $('#stage-show-names').addEventListener('change', (e) => {
-    state.config.showNames = e.target.checked;
-    if (stageSwitchByPointer) {
-      e.target.blur();
-      stageSwitchByPointer = false;
-    }
-    save();
-  });
   document.addEventListener('keydown', (e) => {
     if (activeView() !== 'view-pantalla') return;
     if ($('#auth-overlay').classList.contains('show') || $('#confirm-overlay').classList.contains('show')) return;
@@ -1760,11 +1715,6 @@
 
     if (e.ctrlKey || e.altKey || e.metaKey) return;
     const kLow = (e.key || '').toLowerCase();
-    if (kLow === 'm') {
-      e.preventDefault();
-      toggleShowNamesMode(true);
-      return;
-    }
     if (kLow === 'f') {
       if (!document.fullscreenElement) document.documentElement.requestFullscreen?.().catch(() => {});
       else if (!kioskLocked) document.exitFullscreen?.();
@@ -1784,7 +1734,7 @@
       return;
     }
     // Solo interceptar Espacio / Enter / flechas cuando el foco está en el botón GIRAR o libre,
-    // para que Tab -> 🔒 Bloquear Kiosco / 🖥️ Ventana HDMI / Mostrar nombres funcionen con Enter/Espacio
+    // para que Tab -> 🔒 Bloquear Kiosco funcione con Enter/Espacio
     const spinFocusedOrIdle = !ae || ae === document.body || ae === document.documentElement || ae === $('#spin-btn');
     if (spinFocusedOrIdle && [' ', 'Enter', 'ArrowRight', 'ArrowDown'].includes(e.key)) {
       e.preventDefault();
@@ -1945,17 +1895,9 @@
   });
 
   /* ---------------- Inicialización ---------------- */
-  if (isHdmiWindow) {
-    document.title = 'Addiuva · Pantalla HDMI Ruleta';
-    kioskLocked = false;
-    document.body.classList.remove('kiosk-locked');
-    document.body.classList.add('hdmi-clean');
-    setView('pantalla');
-  } else {
-    const initial = location.hash.slice(1) || 'kiosco';
-    setView(initial);
-    focusWorkspaceTarget(initial);
-  }
+  const initial = location.hash.slice(1) || 'kiosco';
+  setView(initial);
+  focusWorkspaceTarget(initial);
   renderAll();
   syncFromServer();
 })();

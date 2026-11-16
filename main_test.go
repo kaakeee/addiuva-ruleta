@@ -73,7 +73,7 @@ func TestApiQuitAuthorization(t *testing.T) {
 	mu.Unlock()
 
 	var quitCalled atomic.Bool
-	mux := buildHTTPMux(nil, "", "", func(kmd, hmd *exec.Cmd) {
+	mux := buildHTTPMux(nil, "", func(kmd *exec.Cmd) {
 		quitCalled.Store(true)
 	})
 	srv := httptest.NewServer(mux)
