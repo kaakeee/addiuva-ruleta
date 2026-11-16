@@ -2,6 +2,8 @@ package main
 
 import (
 	"encoding/json"
+	"io"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -709,5 +711,125 @@ type chanBrowserProc struct {
 func (c chanBrowserProc) Wait() error {
 	<-c.done
 	return nil
+}
+
+func TestNoTranslateProfilePrefsAndMerge(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "kiosk-profile")
+	if err := ensureNoTranslateBrowserPrefs(dir); err != nil {
+		t.Fatalf("ensureNoTranslateBrowserPrefs fresh dir failed: %v", err)
+	}
+
+	prefsPath := filepath.Join(dir, "Default", "Preferences")
+	raw, err := os.ReadFile(prefsPath)
+	if err != nil {
+		t.Fatalf("expected Default/Preferences to exist: %v", err)
+	}
+	var parsed map[string]any
+	if err := json.Unmarshal(raw, &parsed); err != nil {
+		t.Fatalf("invalid Preferences JSON: %v", err)
+	}
+	tr, _ := parsed["translate"].(map[string]any)
+	if enabled, ok := tr["enabled"].(bool); !ok || enabled {
+		t.Fatalf("expected translate.enabled=false, got %#v", parsed["translate"])
+	}
+	intl, _ := parsed["intl"].(map[string]any)
+	if intl["accept_languages"] != "es-AR,es,en-US,en" {
+		t.Fatalf("expected accept_languages es-AR,es,en-US,en, got %#v", intl)
+	}
+
+	// Merge into existing Preferences preserving existing keys & blocked languages
+	existing := `{
+	  "profile": {"name": "Kiosco"},
+	  "translate": {"enabled": true, "recent_target": "pt"},
+	  "translate_blocked_languages": ["fr", "es"]
+	}`
+	if err := os.WriteFile(prefsPath, []byte(existing), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := ensureNoTranslateBrowserPrefs(dir); err != nil {
+		t.Fatalf("ensureNoTranslateBrowserPrefs merge failed: %v", err)
+	}
+	raw2, err := os.ReadFile(prefsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var merged map[string]any
+	if err := json.Unmarshal(raw2, &merged); err != nil {
+		t.Fatal(err)
+	}
+	if prof, _ := merged["profile"].(map[string]any); prof["name"] != "Kiosco" {
+		t.Fatalf("expected existing profile.name to be preserved, got %#v", merged["profile"])
+	}
+	tr2, _ := merged["translate"].(map[string]any)
+	if tr2["enabled"] != false || tr2["recent_target"] != "pt" {
+		t.Fatalf("expected translate.enabled=false and preserved recent_target, got %#v", tr2)
+	}
+	blocked, _ := merged["translate_blocked_languages"].([]any)
+	if len(blocked) != 3 || blocked[0] != "fr" || blocked[1] != "es" || blocked[2] != "en" {
+		t.Fatalf("expected merged [fr, es, en] without duplicates, got %#v", blocked)
+	}
+}
+
+func TestBuildBrowserLaunchArgsAndEmbeddedHTML(t *testing.T) {
+	url := "http://127.0.0.1:45678/#kiosco"
+	profile := `C:\Temp\addiuva-ruleta-kiosk-123`
+
+	for _, tc := range []struct {
+		name string
+		mode launchMode
+		must string
+	}{
+		{name: "kiosk", mode: launchModeKiosk, must: "--kiosk"},
+		{name: "app", mode: launchModeApp, must: "--app=" + url},
+	} {
+		args := buildBrowserLaunchArgs(tc.mode, url, profile)
+		joined := strings.Join(args, "\n")
+		for _, want := range []string{
+			tc.must,
+			"--no-first-run",
+			"--no-default-browser-check",
+			"--lang=es",
+			"--disable-features=Translate,TranslateUI,EdgeSidebar",
+			"--user-data-dir=" + profile,
+		} {
+			if !strings.Contains(joined, want) {
+				t.Fatalf("%s mode missing expected flag %q in args %#v", tc.name, want, args)
+			}
+		}
+		if strings.Contains(joined, "--disable-translate") {
+			t.Fatalf("%s mode should not pass deprecated --disable-translate flag: %#v", tc.name, args)
+		}
+	}
+
+	subFS, err := fs.Sub(embeddedFiles, "prototipo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	mux := buildHTTPMuxWithShell(subFS, "", nil, nil)
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	res, err := http.Get(srv.URL + "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	if got := res.Header.Get("Content-Language"); got != "es" {
+		t.Fatalf("expected Content-Language=es header, got %q", got)
+	}
+	bodyBytes, err := io.ReadAll(res.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	html := string(bodyBytes)
+	for _, needle := range []string{
+		`<html lang="es" translate="no" class="notranslate">`,
+		`<meta name="google" content="notranslate" />`,
+		`<body class="kiosk-locked" translate="no">`,
+	} {
+		if !strings.Contains(html, needle) {
+			t.Fatalf("embedded index.html missing %q", needle)
+		}
+	}
 }
 

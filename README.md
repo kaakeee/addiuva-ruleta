@@ -22,6 +22,7 @@ Aplicación todo-en-uno para el sorteo de fin de año de **Addiuva** (~100 perso
 4. **Guardado automático en disco:** Cada inscripción y cada ronda ganadora se guardan en tiempo real junto al `.exe` en:
    - `datos-sorteo-addiuva.json` (si la notebook se apaga o reinicia, al abrir `AddiuvaRuleta.exe` recupera todos los inscriptos).
    - `inscriptos-addiuva.csv` (planilla lista para abrir directamente en Excel).
+5. **Sin carteles ni traducciones automáticas:** Desactiva el diálogo de traducción de Edge/Chrome (*"Translate page from Spanish?"*), el asistente inicial y las barras emergentes sobre el kiosco.
 
 ---
 

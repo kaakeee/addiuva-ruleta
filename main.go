@@ -617,10 +617,119 @@ func buildHTTPMuxWithShell(subFS fs.FS, profileDir string, shell *shellControlle
 		fileSrv := http.FileServer(http.FS(subFS))
 		mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 			markClientSeen()
+			if r.URL.Path == "/" || strings.HasSuffix(strings.ToLower(r.URL.Path), ".html") {
+				w.Header().Set("Content-Language", "es")
+			}
 			fileSrv.ServeHTTP(w, r)
 		})
 	}
 	return mux
+}
+
+func mergeUniqueStrings(raw any, required []string) []string {
+	out := make([]string, 0, len(required))
+	seen := make(map[string]struct{}, len(required))
+	add := func(v string) {
+		v = strings.TrimSpace(v)
+		if v == "" {
+			return
+		}
+		if _, ok := seen[v]; ok {
+			return
+		}
+		seen[v] = struct{}{}
+		out = append(out, v)
+	}
+	switch xs := raw.(type) {
+	case []string:
+		for _, v := range xs {
+			add(v)
+		}
+	case []any:
+		for _, item := range xs {
+			if s, ok := item.(string); ok {
+				add(s)
+			}
+		}
+	}
+	for _, r := range required {
+		add(r)
+	}
+	return out
+}
+
+// ensureNoTranslateBrowserPrefs preconfigura Default/Preferences en el perfil temporal
+// de Edge/Chrome para desactivar el cartel "¿Traducir página del español?" de fábrica.
+func ensureNoTranslateBrowserPrefs(profileDir string) error {
+	if strings.TrimSpace(profileDir) == "" {
+		return nil
+	}
+	defaultDir := filepath.Join(profileDir, "Default")
+	if err := os.MkdirAll(defaultDir, 0755); err != nil {
+		return err
+	}
+	prefsPath := filepath.Join(defaultDir, "Preferences")
+
+	prefs := make(map[string]any)
+	if raw, err := os.ReadFile(prefsPath); err == nil && len(bytes.TrimSpace(raw)) > 0 {
+		var parsed map[string]any
+		if json.Unmarshal(raw, &parsed) == nil && parsed != nil {
+			prefs = parsed
+		}
+	}
+
+	translateObj, _ := prefs["translate"].(map[string]any)
+	if translateObj == nil {
+		translateObj = make(map[string]any)
+	}
+	translateObj["enabled"] = false
+	prefs["translate"] = translateObj
+
+	prefs["translate_blocked_languages"] = mergeUniqueStrings(prefs["translate_blocked_languages"], []string{"es", "en"})
+
+	intlObj, _ := prefs["intl"].(map[string]any)
+	if intlObj == nil {
+		intlObj = make(map[string]any)
+	}
+	intlObj["accept_languages"] = "es-AR,es,en-US,en"
+	prefs["intl"] = intlObj
+
+	out, err := json.MarshalIndent(prefs, "", "  ")
+	if err != nil {
+		return err
+	}
+	return writeFileAtomic(prefsPath, out)
+}
+
+func buildBrowserLaunchArgs(mode launchMode, url string, useProfile string) []string {
+	if mode == launchModeApp {
+		return []string{
+			"--app=" + url,
+			"--start-fullscreen",
+			"--no-first-run",
+			"--no-default-browser-check",
+			"--lang=es",
+			"--disable-background-mode",
+			"--disable-pinch",
+			"--overscroll-history-navigation=0",
+			"--disable-features=Translate,TranslateUI,EdgeSidebar",
+			"--user-data-dir=" + useProfile,
+		}
+	}
+	return []string{
+		"--kiosk", url,
+		"--edge-kiosk-type=fullscreen",
+		"--no-first-run",
+		"--no-default-browser-check",
+		"--lang=es",
+		"--disable-background-mode",
+		"--disable-pinch",
+		"--overscroll-history-navigation=0",
+		"--disable-infobars",
+		"--disable-session-crashed-bubble",
+		"--disable-features=Translate,TranslateUI,EdgeSidebar",
+		"--user-data-dir=" + useProfile,
+	}
 }
 
 type browserProcess interface {

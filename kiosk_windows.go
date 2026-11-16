@@ -415,6 +415,8 @@ func prepareProfileDir(profileDir string) {
 	if _, err := os.Stat(firstRunPath); err != nil {
 		_ = os.WriteFile(firstRunPath, []byte{}, 0644)
 	}
+	// Desactivar diálogo de traducción automática desde el primer inicio
+	_ = ensureNoTranslateBrowserPrefs(profileDir)
 }
 
 func cleanupStaleProfileDirs() {
@@ -494,35 +496,10 @@ func launchKioskBrowser(mode launchMode, url string, profileDir string) *exec.Cm
 	if mode != launchModeFallback {
 		if exe := findBrowserExe(); exe != "" {
 			useProfile := profileDir
-			var args []string
 			if mode == launchModeApp {
 				useProfile = profileDir + "-app"
-				args = []string{
-					"--app=" + url,
-					"--start-fullscreen",
-					"--no-first-run",
-					"--no-default-browser-check",
-					"--disable-background-mode",
-					"--disable-pinch",
-					"--overscroll-history-navigation=0",
-					"--disable-features=TranslateUI,EdgeSidebar",
-					"--user-data-dir=" + useProfile,
-				}
-			} else {
-				args = []string{
-					"--kiosk", url,
-					"--edge-kiosk-type=fullscreen",
-					"--no-first-run",
-					"--no-default-browser-check",
-					"--disable-background-mode",
-					"--disable-pinch",
-					"--overscroll-history-navigation=0",
-					"--disable-infobars",
-					"--disable-session-crashed-bubble",
-					"--disable-features=TranslateUI,EdgeSidebar",
-					"--user-data-dir=" + useProfile,
-				}
 			}
+			args := buildBrowserLaunchArgs(mode, url, useProfile)
 			prepareProfileDir(useProfile)
 			cmd := exec.Command(exe, args...)
 			if err := cmd.Start(); err == nil {
